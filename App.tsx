@@ -36,7 +36,7 @@ const App: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch('/api/personas');
+        const res = await fetch('http://localhost:3001/api/personas');
         if (!res.ok) {
           throw new Error('Failed to fetch personas');
         }
@@ -82,7 +82,7 @@ const App: React.FC = () => {
 
   const handlePersonaCreate = async (newPersona: Omit<Persona, 'id'>) => {
     try {
-      const res = await fetch('/api/personas', {
+      const res = await fetch('http://localhost:3001/api/personas', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ const App: React.FC = () => {
 
   const handlePersonaUpdate = async (updatedPersona: Persona) => {
     try {
-      const res = await fetch(`/api/personas/${updatedPersona.id}`, {
+      const res = await fetch(`http://localhost:3001/api/personas/${updatedPersona.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ const App: React.FC = () => {
   const handlePersonaDelete = async (personaId: string) => {
     if (window.confirm(t('deleteConfirmation'))) {
       try {
-        const res = await fetch(`/api/personas/${personaId}`, {
+        const res = await fetch(`http://localhost:3001/api/personas/${personaId}`, {
           method: 'DELETE',
         });
         if (!res.ok) {
