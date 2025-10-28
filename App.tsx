@@ -7,6 +7,7 @@ import PersonaCard from './components/PersonaCard';
 import PersonaCreator from './components/PersonaCreator';
 import DebateArena from './components/DebateArena';
 import PlusIcon from './components/icons/PlusIcon';
+import usePersistentState from './hooks/usePersistentState';
 
 const initialPersonas: Persona[] = [
   {
@@ -27,9 +28,10 @@ const initialPersonas: Persona[] = [
 
 const App: React.FC = () => {
   const { t } = useTranslation();
-  const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
+  const [personas, setPersonas] = usePersistentState<Persona[]>('personas', initialPersonas);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingOrEditing, setIsCreatingOrEditing] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
 
   const handleSelectPersona = (personaId: string) => {
     setSelectedPersonaIds(prev =>
@@ -41,6 +43,26 @@ const App: React.FC = () => {
 
   const handlePersonaCreate = (newPersona: Persona) => {
     setPersonas(prev => [...prev, newPersona]);
+  };
+
+  const handlePersonaUpdate = (updatedPersona: Persona) => {
+    setPersonas(prev => prev.map(p => p.id === updatedPersona.id ? updatedPersona : p));
+  };
+
+  const handlePersonaDelete = (personaId: string) => {
+    if (window.confirm(t('deleteConfirmation'))) {
+        setPersonas(prev => prev.filter(p => p.id !== personaId));
+    }
+  };
+
+  const handleEditClick = (persona: Persona) => {
+    setEditingPersona(persona);
+    setIsCreatingOrEditing(true);
+  };
+
+  const handleCloseCreator = () => {
+    setEditingPersona(null);
+    setIsCreatingOrEditing(false);
   };
 
   const selectedPersonas = personas.filter(p => selectedPersonaIds.includes(p.id));
@@ -59,10 +81,12 @@ const App: React.FC = () => {
                     persona={persona}
                     isSelected={selectedPersonaIds.includes(persona.id)}
                     onSelect={handleSelectPersona}
+                    onEdit={handleEditClick}
+                    onDelete={handlePersonaDelete}
                 />
                 ))}
                 <button
-                    onClick={() => setIsCreating(true)}
+                    onClick={() => setIsCreatingOrEditing(true)}
                     className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-gray-600 text-gray-500 hover:border-purple-500 hover:text-purple-400 transition-colors"
                 >
                     <PlusIcon className="w-12 h-12 mb-2" />
@@ -74,10 +98,12 @@ const App: React.FC = () => {
         {selectedPersonas.length >= 2 && <DebateArena participants={selectedPersonas} />}
       </main>
 
-      {isCreating && (
+      {isCreatingOrEditing && (
         <PersonaCreator
-          onClose={() => setIsCreating(false)}
+          personaToEdit={editingPersona}
+          onClose={handleCloseCreator}
           onPersonaCreate={handlePersonaCreate}
+          onPersonaUpdate={handlePersonaUpdate}
         />
       )}
     </div>
