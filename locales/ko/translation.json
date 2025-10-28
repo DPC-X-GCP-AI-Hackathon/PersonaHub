@@ -29,5 +29,12 @@
   "collaborative": "협력적",
   "debateTurns": "턴 수",
   "updatePersona": "페르소나 업데이트",
-  "deleteConfirmation": "이 페르소나를 정말로 삭제하시겠습니까?"
+  "deleteConfirmation": "이 페르소나를 정말로 삭제하시겠습니까?",
+  "loading": "로딩 중...",
+  "retry": "다시 시도",
+  "errorCreatingPersona": "페르소나 생성에 실패했습니다. 다시 시도해주세요.",
+  "errorUpdatingPersona": "페르소나 업데이트에 실패했습니다. 다시 시도해주세요.",
+  "errorDeletingPersona": "페르소나 삭제에 실패했습니다. 다시 시도해주세요.",
+  "exportText": "텍스트로 내보내기",
+  "exportJson": "JSON으로 내보내기"
 }

@@ -6,6 +6,7 @@ import { runDebateTurn, summarizeDebate, generateDebateStance } from '../service
 import ChatMessage from './ChatMessage';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import SparklesIcon from './icons/SparklesIcon';
+import DownloadIcon from './icons/DownloadIcon';
 
 interface DebateArenaProps {
   participants: Persona[];
@@ -108,6 +109,68 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
     setIsSummarizing(false);
   }
 
+  const handleExportDebate = () => {
+    const debateData = {
+      topic,
+      date: new Date().toISOString(),
+      participants: participants.map(p => ({
+        name: p.name,
+        description: p.description,
+        stance: p.stance
+      })),
+      settings: {
+        debateScope,
+        argumentationStyle,
+        debateTurns
+      },
+      messages: messages.map(m => ({
+        personaName: m.personaName,
+        text: m.text
+      })),
+      summary: summary || null
+    };
+
+    const blob = new Blob([JSON.stringify(debateData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `debate-${topic.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  const handleExportDebateText = () => {
+    let textContent = `Debate Topic: ${topic}\n`;
+    textContent += `Date: ${new Date().toLocaleString()}\n`;
+    textContent += `Participants: ${participants.map(p => p.name).join(', ')}\n`;
+    textContent += `Settings: ${debateScope} scope, ${argumentationStyle} style, ${debateTurns} turns\n`;
+    textContent += `\n${'='.repeat(80)}\n\n`;
+
+    messages.forEach(msg => {
+      if (msg.personaId === 'moderator') {
+        textContent += `\n[${msg.personaName}] ${msg.text}\n\n`;
+      } else {
+        textContent += `${msg.personaName}:\n${msg.text}\n\n`;
+      }
+    });
+
+    if (summary) {
+      textContent += `\n${'='.repeat(80)}\n\nSUMMARY:\n${summary}\n`;
+    }
+
+    const blob = new Blob([textContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `debate-${topic.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="bg-gray-800 rounded-lg p-6 w-full mt-6">
         <h2 className="text-xl font-bold mb-4 text-center text-purple-300">{t('debateArena')}</h2>
@@ -182,14 +245,32 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
         
         {!isDebating && messages.length > 1 && (
             <div className="mt-4 flex flex-col items-center">
-                <button
-                    onClick={handleSummarize}
-                    disabled={isSummarizing}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed transition-colors"
-                >
-                    {isSummarizing ? t('summarizing') : t('summarizeDebate')}
-                    <SparklesIcon className={`w-5 h-5 ${isSummarizing ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex gap-3 mb-4">
+                    <button
+                        onClick={handleSummarize}
+                        disabled={isSummarizing}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {isSummarizing ? t('summarizing') : t('summarizeDebate')}
+                        <SparklesIcon className={`w-5 h-5 ${isSummarizing ? 'animate-spin' : ''}`} />
+                    </button>
+
+                    <button
+                        onClick={handleExportDebateText}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                        {t('exportText') || 'Export as Text'}
+                        <DownloadIcon className="w-5 h-5" />
+                    </button>
+
+                    <button
+                        onClick={handleExportDebate}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                        {t('exportJson') || 'Export as JSON'}
+                        <DownloadIcon className="w-5 h-5" />
+                    </button>
+                </div>
 
                 {summary && (
                     <div className="mt-4 p-4 bg-gray-900 border border-gray-700 rounded-lg w-full">

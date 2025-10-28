@@ -29,5 +29,12 @@
   "collaborative": "Collaborative",
   "debateTurns": "Turns",
   "updatePersona": "Update Persona",
-  "deleteConfirmation": "Are you sure you want to delete this persona?"
+  "deleteConfirmation": "Are you sure you want to delete this persona?",
+  "loading": "Loading...",
+  "retry": "Retry",
+  "errorCreatingPersona": "Failed to create persona. Please try again.",
+  "errorUpdatingPersona": "Failed to update persona. Please try again.",
+  "errorDeletingPersona": "Failed to delete persona. Please try again.",
+  "exportText": "Export as Text",
+  "exportJson": "Export as JSON"
 }

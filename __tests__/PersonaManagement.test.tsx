@@ -19,15 +19,91 @@ jest.mock('../services/geminiService', () => ({
   createPersonaPrompt: jest.fn().mockResolvedValue('Generated system prompt'),
 }));
 
+const mockPersonas = [
+  {
+    id: '1',
+    name: 'Dr. Evelyn Reed',
+    description: 'A cautious and ethical AI researcher',
+    systemPrompt: 'You are Dr. Evelyn Reed...',
+    avatar: 'https://i.pravatar.cc/150?u=1'
+  },
+  {
+    id: '2',
+    name: 'Jax',
+    description: 'A libertarian techno-optimist',
+    systemPrompt: 'You are Jax...',
+    avatar: 'https://i.pravatar.cc/150?u=2'
+  }
+];
+
 describe('Persona Management', () => {
   beforeEach(() => {
-    window.localStorage.clear();
     // Mock window.confirm
     window.confirm = jest.fn(() => true);
+
+    // Mock fetch API
+    global.fetch = jest.fn((url, options) => {
+      const method = options?.method || 'GET';
+
+      if (url === 'http://localhost:3001/api/personas' && method === 'GET') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([...mockPersonas]),
+        });
+      }
+
+      if (url === 'http://localhost:3001/api/personas' && method === 'POST') {
+        const body = JSON.parse(options.body);
+        const newPersona = { ...body, id: '3' };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(newPersona),
+        });
+      }
+
+      if (url.startsWith('http://localhost:3001/api/personas/') && method === 'PUT') {
+        const body = JSON.parse(options.body);
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(body),
+        });
+      }
+
+      if (url.startsWith('http://localhost:3001/api/personas/') && method === 'DELETE') {
+        return Promise.resolve({
+          ok: true,
+          status: 204,
+        });
+      }
+
+      return Promise.reject(new Error('Unknown route'));
+    }) as jest.Mock;
   });
 
-  test('should create a new persona and persist it', async () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('should load and display personas from API', async () => {
     render(<App />);
+
+    // Wait for personas to load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Evelyn Reed')).toBeInTheDocument();
+      expect(screen.getByText('Jax')).toBeInTheDocument();
+    });
+
+    // Verify fetch was called
+    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3001/api/personas');
+  });
+
+  test('should create a new persona via API', async () => {
+    render(<App />);
+
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Evelyn Reed')).toBeInTheDocument();
+    });
 
     // Click the create new persona button
     fireEvent.click(screen.getByText('createNewPersona'));
@@ -40,22 +116,24 @@ describe('Persona Management', () => {
     // Create the persona
     fireEvent.click(screen.getByText('createPersona'));
 
-    // Wait for the modal to close
+    // Wait for the modal to close and persona to appear
     await waitFor(() => {
       expect(screen.queryByText('createPersonaTitle')).not.toBeInTheDocument();
     });
 
     // Check if the new persona is on the screen
-    expect(screen.getByText('Test Persona')).toBeInTheDocument();
-
-    // Check if the persona is in localStorage
-    const storedPersonas = JSON.parse(window.localStorage.getItem('personas') || '[]');
-    expect(storedPersonas).toHaveLength(3);
-    expect(storedPersonas[2].name).toBe('Test Persona');
+    await waitFor(() => {
+      expect(screen.getByText('Test Persona')).toBeInTheDocument();
+    });
   });
 
-  test('should edit an existing persona and persist the changes', async () => {
+  test('should update an existing persona via API', async () => {
     render(<App />);
+
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Evelyn Reed')).toBeInTheDocument();
+    });
 
     // Find the edit button for the first persona and click it
     const personaCard = screen.getByText('Dr. Evelyn Reed').closest('.group');
@@ -70,7 +148,8 @@ describe('Persona Management', () => {
     });
 
     // Change the name
-    fireEvent.change(screen.getByDisplayValue('Dr. Evelyn Reed'), { target: { value: 'Dr. Evelyn Reed Updated' } });
+    const nameInput = screen.getByDisplayValue('Dr. Evelyn Reed');
+    fireEvent.change(nameInput, { target: { value: 'Dr. Evelyn Reed Updated' } });
 
     // Update the persona
     fireEvent.click(screen.getByText('updatePersona'));
@@ -81,15 +160,18 @@ describe('Persona Management', () => {
     });
 
     // Check if the updated persona is on the screen
-    expect(screen.getByText('Dr. Evelyn Reed Updated')).toBeInTheDocument();
-
-    // Check if the persona is updated in localStorage
-    const storedPersonas = JSON.parse(window.localStorage.getItem('personas') || '[]');
-    expect(storedPersonas[0].name).toBe('Dr. Evelyn Reed Updated');
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Evelyn Reed Updated')).toBeInTheDocument();
+    });
   });
 
-  test('should delete a persona and remove it from persistence', async () => {
+  test('should delete a persona via API', async () => {
     render(<App />);
+
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Evelyn Reed')).toBeInTheDocument();
+    });
 
     // Find the delete button for the first persona and click it
     const personaCard = screen.getByText('Dr. Evelyn Reed').closest('.group');
@@ -103,9 +185,7 @@ describe('Persona Management', () => {
       expect(screen.queryByText('Dr. Evelyn Reed')).not.toBeInTheDocument();
     });
 
-    // Check if the persona is removed from localStorage
-    const storedPersonas = JSON.parse(window.localStorage.getItem('personas') || '[]');
-    expect(storedPersonas).toHaveLength(1);
-    expect(storedPersonas[0].name).toBe('Jax');
+    // Verify Jax is still there
+    expect(screen.getByText('Jax')).toBeInTheDocument();
   });
 });

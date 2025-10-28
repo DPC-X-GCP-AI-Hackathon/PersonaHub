@@ -8,7 +8,7 @@ import SparklesIcon from './icons/SparklesIcon';
 interface PersonaCreatorProps {
   personaToEdit?: Persona | null;
   onClose: () => void;
-  onPersonaCreate: (newPersona: Persona) => void;
+  onPersonaCreate: (newPersona: Omit<Persona, 'id'>) => void;
   onPersonaUpdate: (updatedPersona: Persona) => void;
 }
 
@@ -57,8 +57,7 @@ const PersonaCreator: React.FC<PersonaCreatorProps> = ({ personaToEdit, onClose,
       };
       onPersonaUpdate(updatedPersona);
     } else {
-      const newPersona: Persona = {
-        id: Date.now().toString(),
+      const newPersona: Omit<Persona, 'id'> = {
         name,
         description,
         systemPrompt,
