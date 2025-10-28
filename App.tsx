@@ -30,13 +30,14 @@ const App: React.FC = () => {
   const [isCreatingChatRoom, setIsCreatingChatRoom] = useState(false);
   const [editingChatRoom, setEditingChatRoom] = useState<ChatRoom | null>(null);
   const [isChatRoomsLoading, setIsChatRoomsLoading] = useState(false);
+  const [isDebateInProgress, setIsDebateInProgress] = useState(false);
 
   useEffect(() => {
     const fetchPersonas = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch('http://localhost:3001/api/personas');
+        const res = await fetch('/api/personas');
         if (!res.ok) {
           throw new Error('Failed to fetch personas');
         }
@@ -61,7 +62,7 @@ const App: React.FC = () => {
   const fetchChatRooms = async () => {
     try {
       setIsChatRoomsLoading(true);
-      const res = await fetch('http://localhost:3001/api/chatrooms');
+      const res = await fetch('/api/chatrooms');
       if (!res.ok) throw new Error('Failed to fetch chatrooms');
       const data = await res.json();
       setChatRooms(data);
@@ -82,7 +83,7 @@ const App: React.FC = () => {
 
   const handlePersonaCreate = async (newPersona: Omit<Persona, 'id'>) => {
     try {
-      const res = await fetch('http://localhost:3001/api/personas', {
+      const res = await fetch('/api/personas', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ const App: React.FC = () => {
 
   const handlePersonaUpdate = async (updatedPersona: Persona) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/personas/${updatedPersona.id}`, {
+      const res = await fetch(`/api/personas/${updatedPersona.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +124,7 @@ const App: React.FC = () => {
   const handlePersonaDelete = async (personaId: string) => {
     if (window.confirm(t('deleteConfirmation'))) {
       try {
-        const res = await fetch(`http://localhost:3001/api/personas/${personaId}`, {
+        const res = await fetch(`/api/personas/${personaId}`, {
           method: 'DELETE',
         });
         if (!res.ok) {
@@ -151,7 +152,7 @@ const App: React.FC = () => {
   // ChatRoom handlers
   const handleChatRoomCreate = async (newChatRoom: Omit<ChatRoom, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const res = await fetch('http://localhost:3001/api/chatrooms', {
+      const res = await fetch('/api/chatrooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newChatRoom),
@@ -167,7 +168,7 @@ const App: React.FC = () => {
 
   const handleChatRoomUpdate = async (updated: ChatRoom) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/chatrooms/${updated.id}`, {
+      const res = await fetch(`/api/chatrooms/${updated.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
@@ -184,7 +185,7 @@ const App: React.FC = () => {
   const handleChatRoomDelete = async (id: string) => {
     if (window.confirm(t('deleteChatRoomConfirmation'))) {
       try {
-        const res = await fetch(`http://localhost:3001/api/chatrooms/${id}`, {
+        const res = await fetch(`/api/chatrooms/${id}`, {
           method: 'DELETE',
         });
         if (!res.ok) throw new Error('Failed to delete chatroom');
@@ -199,7 +200,7 @@ const App: React.FC = () => {
 
   const handleUpdateMessages = async (chatRoomId: string, messages: ChatMessage[]) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/chatrooms/${chatRoomId}/messages`, {
+      const res = await fetch(`/api/chatrooms/${chatRoomId}/messages`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages }),
@@ -299,7 +300,11 @@ const App: React.FC = () => {
             </div>
 
             {selectedPersonas.length >= 2 && (
-              <DebateArena participants={selectedPersonas} />
+              <DebateArena 
+                participants={selectedPersonas} 
+                onDebateStateChange={setIsDebateInProgress}
+                isDebateInProgress={isDebateInProgress}
+              />
             )}
           </>
         )}

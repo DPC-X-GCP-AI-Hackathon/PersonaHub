@@ -7,7 +7,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const port = 3001;
+const port = 3002;
 const PERSONAS_FILE = path.join(__dirname, 'data', 'personas.json');
 const CHATROOMS_FILE = path.join(__dirname, 'data', 'chatrooms.json');
 

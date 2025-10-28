@@ -2,11 +2,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Persona, DebateMessage } from '../types';
-import { runDebateTurn, summarizeDebate, generateDebateStance } from '../services/geminiService';
+import { runLiveDebateTurn, summarizeDebate, generateDebateStance } from '../services/geminiService';
 import ChatMessage from './ChatMessage';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import SparklesIcon from './icons/SparklesIcon';
 import DownloadIcon from './icons/DownloadIcon';
+import PlayIcon from './icons/PlayIcon';
 
 interface DebateArenaProps {
   participants: Persona[];
@@ -27,8 +28,10 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   const [debateTurns, setDebateTurns] = useState(3);
   const [isStopping, setIsStopping] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const stopDebateRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setParticipants(initialParticipants);
@@ -39,15 +42,50 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   };
 
   useEffect(scrollToBottom, [messages, isDebating]);
+
+  const speak = (audioBlob: Blob): Promise<void> => {
+    return new Promise(async (resolve) => {
+      if (!isAudioEnabled) {
+        resolve();
+        return;
+      }
+
+      try {
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        };
+        audio.play();
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        resolve();
+      }
+    });
+  };
+
   
   const handleStopDebate = () => {
     stopDebateRef.current = true;
     setIsStopping(true);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
   };
 
   const startDebate = async () => {
     if (!topic || participants.length < 2) return;
     
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
     stopDebateRef.current = false;
     setIsSettingUp(true);
     onDebateStateChange(true);
@@ -92,19 +130,21 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
         setMessages(prev => [...prev, thinkingMessage]);
 
-        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn);
+        const { text, audio } = await runLiveDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn, isAudioEnabled);
 
         if (stopDebateRef.current) break;
 
         const newResponseMessage: DebateMessage = {
             personaId: currentSpeaker.id,
             personaName: currentSpeaker.name,
-            text: responseText,
+            text: text,
             avatar: currentSpeaker.avatar
         };
         
         currentMessages = [...currentMessages, newResponseMessage];
-        setMessages(prev => [...prev.slice(0, -1), newResponseMessage]);
+        setMessages(prev => prev.filter(m => m.personaId !== 'moderator' || m.text.indexOf('is thinking') === -1));
+        setMessages(prev => [...prev, newResponseMessage]);
+        await speak(audio);
         
         await new Promise(res => setTimeout(res, 500)); // Brief pause between turns
     }
@@ -241,6 +281,13 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                   <option value="Collaborative">{t('collaborative')}</option>
               </select>
             </div>
+            <button
+                onClick={() => setIsAudioEnabled(!isAudioEnabled)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-colors ${isAudioEnabled ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'}`}
+            >
+                <PlayIcon className="w-5 h-5" />
+                <span>{isAudioEnabled ? t('audioOn') : t('audioOff')}</span>
+            </button>
             {!isDebating ? (
               <button
                   onClick={startDebate}
