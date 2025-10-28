@@ -10,6 +10,7 @@
   "summarizing": "요약 중...",
   "debateSummary": "토론 요약",
   "createPersonaTitle": "새 페르소나 만들기",
+  "editPersonaTitle": "페르소나 수정",
   "personaName": "페르소나 이름",
   "personaNamePlaceholder": "예: 냉소적인 기술 전문가",
   "briefDescription": "간단한 설명",
@@ -26,5 +27,7 @@
   "argumentationStyle": "토론 스타일",
   "adversarial": "적대적",
   "collaborative": "협력적",
-  "debateTurns": "턴 수"
+  "debateTurns": "턴 수",
+  "updatePersona": "페르소나 업데이트",
+  "deleteConfirmation": "이 페르소나를 정말로 삭제하시겠습니까?"
 }

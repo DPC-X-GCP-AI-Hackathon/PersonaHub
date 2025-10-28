@@ -1,22 +1,34 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Persona } from '../types';
 import { createPersonaPrompt } from '../services/geminiService';
 import SparklesIcon from './icons/SparklesIcon';
 
 interface PersonaCreatorProps {
+  personaToEdit?: Persona | null;
   onClose: () => void;
   onPersonaCreate: (newPersona: Persona) => void;
+  onPersonaUpdate: (updatedPersona: Persona) => void;
 }
 
-const PersonaCreator: React.FC<PersonaCreatorProps> = ({ onClose, onPersonaCreate }) => {
+const PersonaCreator: React.FC<PersonaCreatorProps> = ({ personaToEdit, onClose, onPersonaCreate, onPersonaUpdate }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
+
+  const isEditing = !!personaToEdit;
+
+  useEffect(() => {
+    if (isEditing) {
+      setName(personaToEdit.name);
+      setDescription(personaToEdit.description);
+      setSystemPrompt(personaToEdit.systemPrompt);
+    }
+  }, [isEditing, personaToEdit]);
 
   const handleGeneratePrompt = async () => {
     if (!description) {
@@ -30,26 +42,39 @@ const PersonaCreator: React.FC<PersonaCreatorProps> = ({ onClose, onPersonaCreat
     setIsGenerating(false);
   };
 
-  const handleCreate = () => {
+  const handleSubmit = () => {
     if (!name || !systemPrompt) {
       setError('Name and System Prompt are required.');
       return;
     }
-    const newPersona: Persona = {
-      id: Date.now().toString(),
-      name,
-      description,
-      systemPrompt,
-      avatar: `https://i.pravatar.cc/150?u=${Date.now().toString()}`
-    };
-    onPersonaCreate(newPersona);
+
+    if (isEditing) {
+      const updatedPersona: Persona = {
+        ...personaToEdit,
+        name,
+        description,
+        systemPrompt,
+      };
+      onPersonaUpdate(updatedPersona);
+    } else {
+      const newPersona: Persona = {
+        id: Date.now().toString(),
+        name,
+        description,
+        systemPrompt,
+        avatar: `https://i.pravatar.cc/150?u=${Date.now().toString()}`
+      };
+      onPersonaCreate(newPersona);
+    }
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4 text-purple-300">{t('createPersonaTitle')}</h2>
+        <h2 className="text-2xl font-bold mb-4 text-purple-300">
+          {isEditing ? t('editPersonaTitle') : t('createPersonaTitle')}
+        </h2>
         
         {error && <p className="text-red-400 mb-4">{error}</p>}
         
@@ -107,11 +132,11 @@ const PersonaCreator: React.FC<PersonaCreatorProps> = ({ onClose, onPersonaCreat
             {t('cancel')}
           </button>
           <button
-            onClick={handleCreate}
+            onClick={handleSubmit}
             disabled={!name || !systemPrompt}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed transition-colors"
           >
-            {t('createPersona')}
+            {isEditing ? t('updatePersona') : t('createPersona')}
           </button>
         </div>
       </div>

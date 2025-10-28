@@ -1,19 +1,37 @@
 
 import React from 'react';
 import { Persona } from '../types';
+import PencilIcon from './icons/PencilIcon';
+import TrashIcon from './icons/TrashIcon';
 
 interface PersonaCardProps {
   persona: Persona;
   isSelected: boolean;
   onSelect: (personaId: string) => void;
+  onEdit: (persona: Persona) => void;
+  onDelete: (personaId: string) => void;
 }
 
-const PersonaCard: React.FC<PersonaCardProps> = ({ persona, isSelected, onSelect }) => {
+const PersonaCard: React.FC<PersonaCardProps> = ({ persona, isSelected, onSelect, onEdit, onDelete }) => {
   return (
     <div
       onClick={() => onSelect(persona.id)}
-      className={`relative rounded-lg p-4 bg-gray-800 border-2 transition-all duration-200 cursor-pointer hover:border-purple-500 hover:shadow-lg hover:shadow-purple-900/50 ${isSelected ? 'border-purple-500 ring-2 ring-purple-500' : 'border-gray-700'}`}
+      className={`group relative rounded-lg p-4 bg-gray-800 border-2 transition-all duration-200 cursor-pointer hover:border-purple-500 hover:shadow-lg hover:shadow-purple-900/50 ${isSelected ? 'border-purple-500 ring-2 ring-purple-500' : 'border-gray-700'}`}
     >
+      <div className="absolute top-2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <button 
+          onClick={(e) => { e.stopPropagation(); onEdit(persona); }}
+          className="p-1.5 rounded-full bg-gray-700/50 hover:bg-purple-500/50 text-white"
+        >
+          <PencilIcon className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(persona.id); }}
+          className="p-1.5 rounded-full bg-gray-700/50 hover:bg-red-500/50 text-white"
+        >
+          <TrashIcon className="w-4 h-4" />
+        </button>
+      </div>
       <div className="flex items-start space-x-4">
         <img src={persona.avatar} alt={persona.name} className="w-16 h-16 rounded-full border-2 border-gray-600" />
         <div className="flex-1">

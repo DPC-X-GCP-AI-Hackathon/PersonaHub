@@ -10,6 +10,7 @@
   "summarizing": "Summarizing...",
   "debateSummary": "Debate Summary",
   "createPersonaTitle": "Create New Persona",
+  "editPersonaTitle": "Edit Persona",
   "personaName": "Persona Name",
   "personaNamePlaceholder": "e.g., Cynical Tech Bro",
   "briefDescription": "Brief Description",
@@ -26,5 +27,7 @@
   "argumentationStyle": "Argumentation Style",
   "adversarial": "Adversarial",
   "collaborative": "Collaborative",
-  "debateTurns": "Turns"
+  "debateTurns": "Turns",
+  "updatePersona": "Update Persona",
+  "deleteConfirmation": "Are you sure you want to delete this persona?"
 }
