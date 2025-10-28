@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Persona, DebateMessage } from '../types';
 import { runDebateTurn, summarizeDebate } from '../services/geminiService';
 import ChatMessage from './ChatMessage';
@@ -13,6 +14,7 @@ interface DebateArenaProps {
 const DEBATE_TURNS = 3; // 3 turns per participant
 
 const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
+  const { t } = useTranslation();
   const [topic, setTopic] = useState('');
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isDebating, setIsDebating] = useState(false);
@@ -90,13 +92,13 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
 
   return (
     <div className="bg-gray-800 rounded-lg p-6 w-full mt-6">
-        <h2 className="text-xl font-bold mb-4 text-center text-purple-300">Debate Arena</h2>
+        <h2 className="text-xl font-bold mb-4 text-center text-purple-300">{t('debateArena')}</h2>
         <div className="flex items-center space-x-4 mb-4">
             <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="Enter debate topic..."
+                placeholder={t('enterDebateTopic')}
                 disabled={isDebating}
                 className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-purple-500 focus:border-purple-500"
             />
@@ -105,14 +107,14 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
                 disabled={isDebating || participants.length < 2 || !topic}
                 className="flex items-center justify-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-900 disabled:cursor-not-allowed transition-colors font-semibold"
             >
-                Start Debate <ChevronRightIcon className="w-5 h-5"/>
+                {t('startDebate')} <ChevronRightIcon className="w-5 h-5"/>
             </button>
         </div>
 
         <div className="h-96 bg-gray-900 rounded-md p-4 overflow-y-auto border border-gray-700">
             {messages.length === 0 && (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                    The debate will appear here...
+                    {t('debateWillAppearHere')}
                 </div>
             )}
             {messages.map((msg, index) => (
@@ -128,13 +130,13 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
                     disabled={isSummarizing}
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed transition-colors"
                 >
-                    {isSummarizing ? 'Summarizing...' : 'Summarize Debate'}
+                    {isSummarizing ? t('summarizing') : t('summarizeDebate')}
                     <SparklesIcon className={`w-5 h-5 ${isSummarizing ? 'animate-spin' : ''}`} />
                 </button>
 
                 {summary && (
                     <div className="mt-4 p-4 bg-gray-900 border border-gray-700 rounded-lg w-full">
-                        <h3 className="text-lg font-bold text-green-300 mb-2">Debate Summary</h3>
+                        <h3 className="text-lg font-bold text-green-300 mb-2">{t('debateSummary')}</h3>
                         <p className="text-gray-300 whitespace-pre-wrap">{summary}</p>
                     </div>
                 )}

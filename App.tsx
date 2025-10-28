@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Persona } from './types';
 import Header from './components/Header';
 import PersonaCard from './components/PersonaCard';
@@ -24,8 +25,8 @@ const initialPersonas: Persona[] = [
   }
 ];
 
-
 const App: React.FC = () => {
+  const { t } = useTranslation();
   const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -49,8 +50,8 @@ const App: React.FC = () => {
       <Header />
       <main className="container mx-auto p-4 md:p-6">
         <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <h2 className="text-2xl font-bold mb-1 text-purple-300">Persona Hub</h2>
-            <p className="text-gray-400 mb-4">Select at least two personas to start a debate.</p>
+            <h2 className="text-2xl font-bold mb-1 text-purple-300">{t('personaHub')}</h2>
+            <p className="text-gray-400 mb-4">{t('selectPersonas')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {personas.map(persona => (
                 <PersonaCard
@@ -65,7 +66,7 @@ const App: React.FC = () => {
                     className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-gray-600 text-gray-500 hover:border-purple-500 hover:text-purple-400 transition-colors"
                 >
                     <PlusIcon className="w-12 h-12 mb-2" />
-                    <span className="font-semibold">Create New Persona</span>
+                    <span className="font-semibold">{t('createNewPersona')}</span>
                 </button>
             </div>
         </div>

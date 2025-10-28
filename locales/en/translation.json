@@ -1,0 +1,23 @@
+{
+  "personaHub": "Persona Hub",
+  "selectPersonas": "Select at least two personas to start a debate.",
+  "createNewPersona": "Create New Persona",
+  "debateArena": "Debate Arena",
+  "enterDebateTopic": "Enter debate topic...",
+  "startDebate": "Start Debate",
+  "debateWillAppearHere": "The debate will appear here...",
+  "summarizeDebate": "Summarize Debate",
+  "summarizing": "Summarizing...",
+  "debateSummary": "Debate Summary",
+  "createPersonaTitle": "Create New Persona",
+  "personaName": "Persona Name",
+  "personaNamePlaceholder": "e.g., Cynical Tech Bro",
+  "briefDescription": "Brief Description",
+  "briefDescriptionPlaceholder": "A venture capitalist from Silicon Valley who thinks every problem can be solved with a new app and 'disruption'.",
+  "generateSystemPrompt": "Generate System Prompt",
+  "generating": "Generating...",
+  "systemPrompt": "System Prompt (Editable)",
+  "systemPromptPlaceholder": "System prompt will be generated here...",
+  "cancel": "Cancel",
+  "createPersona": "Create Persona"
+}
