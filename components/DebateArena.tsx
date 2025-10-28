@@ -9,11 +9,11 @@ import SparklesIcon from './icons/SparklesIcon';
 
 interface DebateArenaProps {
   participants: Persona[];
+  onDebateStateChange: (isDebating: boolean) => void;
+  isDebateInProgress: boolean;
 }
 
-const DEBATE_TURNS = 3; // 3 turns per participant
-
-const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticipants }) => {
+const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticipants, onDebateStateChange, isDebateInProgress }) => {
   const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState('');
   const [messages, setMessages] = useState<DebateMessage[]>([]);
@@ -24,7 +24,10 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   const [debateScope, setDebateScope] = useState('Strict');
   const [argumentationStyle, setArgumentationStyle] = useState('Adversarial');
   const [debateTurns, setDebateTurns] = useState(3);
+  const [isStopping, setIsStopping] = useState(false);
+  const [isSettingUp, setIsSettingUp] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const stopDebateRef = useRef(false);
 
   useEffect(() => {
     setParticipants(initialParticipants);
@@ -36,10 +39,17 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
   useEffect(scrollToBottom, [messages, isDebating]);
   
+  const handleStopDebate = () => {
+    stopDebateRef.current = true;
+    setIsStopping(true);
+  };
+
   const startDebate = async () => {
     if (!topic || participants.length < 2) return;
     
-    setIsDebating(true);
+    stopDebateRef.current = false;
+    setIsSettingUp(true);
+    onDebateStateChange(true);
     setSummary('');
 
     const participantsWithStances = await Promise.all(
@@ -49,6 +59,9 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
       }))
     );
     setParticipants(participantsWithStances);
+
+    setIsSettingUp(false);
+    setIsDebating(true);
 
     const initialMessage: DebateMessage = {
       personaId: 'moderator',
@@ -63,6 +76,8 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
     let currentMessages = [initialMessage];
 
     for (let turn = 0; turn < debateTurns * participantsWithStances.length; turn++) {
+        if (stopDebateRef.current) break;
+
         const speakerIndex = turn % participantsWithStances.length;
         const currentSpeaker = participantsWithStances[speakerIndex];
         const isFinalTurn = turn >= (debateTurns - 1) * participantsWithStances.length;
@@ -77,6 +92,8 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
         setMessages(prev => [...prev, thinkingMessage]);
 
         const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn);
+
+        if (stopDebateRef.current) break;
 
         const newResponseMessage: DebateMessage = {
             personaId: currentSpeaker.id,
@@ -94,11 +111,13 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
     const finalMessage: DebateMessage = {
         personaId: 'moderator',
         personaName: 'Moderator',
-        text: 'The debate has concluded.',
+        text: stopDebateRef.current ? 'Debate stopped by user.' : 'The debate has concluded.',
         avatar: ''
     };
     setMessages(prev => [...prev, finalMessage]);
     setIsDebating(false);
+    onDebateStateChange(false);
+    setIsStopping(false);
   };
   
   const handleSummarize = async () => {
@@ -109,7 +128,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 w-full mt-6">
+    <div className={`bg-gray-800 rounded-lg p-6 w-full ${isDebateInProgress ? 'flex flex-col flex-grow' : ''}`}>
         <h2 className="text-xl font-bold mb-4 text-center text-purple-300">{t('debateArena')}</h2>
         <div className="flex items-center space-x-4 mb-4">
             <input
@@ -117,7 +136,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder={t('enterDebateTopic')}
-                disabled={isDebating}
+                disabled={isDebating || isSettingUp}
                 className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-purple-500 focus:border-purple-500"
             />
             <div className="flex items-center space-x-2">
@@ -127,7 +146,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                   type="number"
                   value={debateTurns}
                   onChange={(e) => setDebateTurns(parseInt(e.target.value, 10))}
-                  disabled={isDebating}
+                  disabled={isDebating || isSettingUp}
                   className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm w-20"
                   min={1}
                   max={5}
@@ -139,7 +158,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                   id="debate-scope"
                   value={debateScope}
                   onChange={(e) => setDebateScope(e.target.value)}
-                  disabled={isDebating}
+                  disabled={isDebating || isSettingUp}
                   className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm"
               >
                   <option value="Strict">{t('strict')}</option>
@@ -152,23 +171,41 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                   id="argumentation-style"
                   value={argumentationStyle}
                   onChange={(e) => setArgumentationStyle(e.target.value)}
-                  disabled={isDebating}
+                  disabled={isDebating || isSettingUp}
                   className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm"
               >
                   <option value="Adversarial">{t('adversarial')}</option>
                   <option value="Collaborative">{t('collaborative')}</option>
               </select>
             </div>
-            <button
-                onClick={startDebate}
-                disabled={isDebating || participants.length < 2 || !topic}
-                className="flex items-center justify-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-900 disabled:cursor-not-allowed transition-colors font-semibold"
-            >
-                {t('startDebate')} <ChevronRightIcon className="w-5 h-5"/>
-            </button>
+            {!isDebating ? (
+              <button
+                  onClick={startDebate}
+                  disabled={participants.length < 2 || !topic || isSettingUp}
+                  className="flex items-center justify-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-900 disabled:cursor-not-allowed transition-colors font-semibold w-40"
+              >
+                  {isSettingUp ? (
+                    <><SparklesIcon className="w-5 h-5 animate-spin" /> {t('starting')}</>
+                  ) : (
+                    <>{t('startDebate')} <ChevronRightIcon className="w-5 h-5"/></>
+                  )}
+              </button>
+            ) : (
+              <button
+                  onClick={handleStopDebate}
+                  disabled={isStopping}
+                  className="flex items-center justify-center gap-2 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-800 disabled:cursor-not-allowed transition-colors font-semibold w-40"
+              >
+                  {isStopping ? (
+                    <><SparklesIcon className="w-5 h-5 animate-spin" /> {t('stopping')}</>
+                  ) : (
+                    t('stopDebate')
+                  )}
+              </button>
+            )}
         </div>
 
-        <div className="h-96 bg-gray-900 rounded-md p-4 overflow-y-auto border border-gray-700">
+        <div className={`bg-gray-900 rounded-md p-4 overflow-y-auto border border-gray-700 ${isDebateInProgress ? 'flex-grow' : 'h-96'}`}>
             {messages.length === 0 && (
                 <div className="flex items-center justify-center h-full text-gray-500">
                     {t('debateWillAppearHere')}

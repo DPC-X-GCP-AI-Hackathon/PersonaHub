@@ -8,6 +8,7 @@ import PersonaCreator from './components/PersonaCreator';
 import DebateArena from './components/DebateArena';
 import PlusIcon from './components/icons/PlusIcon';
 import usePersistentState from './hooks/usePersistentState';
+import ActiveParticipants from './components/ActiveParticipants';
 
 const initialPersonas: Persona[] = [
   {
@@ -32,6 +33,7 @@ const App: React.FC = () => {
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [isCreatingOrEditing, setIsCreatingOrEditing] = useState(false);
   const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
+  const [isDebateInProgress, setIsDebateInProgress] = useState(false);
 
   const handleSelectPersona = (personaId: string) => {
     setSelectedPersonaIds(prev =>
@@ -68,34 +70,46 @@ const App: React.FC = () => {
   const selectedPersonas = personas.filter(p => selectedPersonaIds.includes(p.id));
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans">
+    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
       <Header />
-      <main className="container mx-auto p-4 md:p-6">
-        <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <h2 className="text-2xl font-bold mb-1 text-purple-300">{t('personaHub')}</h2>
-            <p className="text-gray-400 mb-4">{t('selectPersonas')}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {personas.map(persona => (
-                <PersonaCard
-                    key={persona.id}
-                    persona={persona}
-                    isSelected={selectedPersonaIds.includes(persona.id)}
-                    onSelect={handleSelectPersona}
-                    onEdit={handleEditClick}
-                    onDelete={handlePersonaDelete}
-                />
-                ))}
-                <button
-                    onClick={() => setIsCreatingOrEditing(true)}
-                    className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-gray-600 text-gray-500 hover:border-purple-500 hover:text-purple-400 transition-colors"
-                >
-                    <PlusIcon className="w-12 h-12 mb-2" />
-                    <span className="font-semibold">{t('createNewPersona')}</span>
-                </button>
-            </div>
-        </div>
+      <main className="container mx-auto p-4 md:p-6 flex-grow flex flex-col">
+        {isDebateInProgress ? (
+          <ActiveParticipants participants={selectedPersonas} />
+        ) : (
+          <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
+              <h2 className="text-2xl font-bold mb-1 text-purple-300">{t('personaHub')}</h2>
+              <p className="text-gray-400 mb-4">{t('selectPersonas')}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {personas.map(persona => (
+                  <PersonaCard
+                      key={persona.id}
+                      persona={persona}
+                      isSelected={selectedPersonaIds.includes(persona.id)}
+                      onSelect={handleSelectPersona}
+                      onEdit={handleEditClick}
+                      onDelete={handlePersonaDelete}
+                  />
+                  ))}
+                  <button
+                      onClick={() => setIsCreatingOrEditing(true)}
+                      className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-gray-600 text-gray-500 hover:border-purple-500 hover:text-purple-400 transition-colors"
+                  >
+                      <PlusIcon className="w-12 h-12 mb-2" />
+                      <span className="font-semibold">{t('createNewPersona')}</span>
+                  </button>
+              </div>
+          </div>
+        )}
 
-        {selectedPersonas.length >= 2 && <DebateArena participants={selectedPersonas} />}
+        {selectedPersonas.length >= 2 && 
+          <div className={`mt-6 ${isDebateInProgress ? 'flex-grow flex flex-col' : ''}`}>
+            <DebateArena 
+              participants={selectedPersonas} 
+              onDebateStateChange={setIsDebateInProgress} 
+              isDebateInProgress={isDebateInProgress} 
+            />
+          </div>
+        }
       </main>
 
       {isCreatingOrEditing && (

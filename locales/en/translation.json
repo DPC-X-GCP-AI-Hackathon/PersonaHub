@@ -5,6 +5,9 @@
   "debateArena": "Debate Arena",
   "enterDebateTopic": "Enter debate topic...",
   "startDebate": "Start Debate",
+  "starting": "Starting...",
+  "stopDebate": "Stop Debate",
+  "stopping": "Stopping...",
   "debateWillAppearHere": "The debate will appear here...",
   "summarizeDebate": "Summarize Debate",
   "summarizing": "Summarizing...",
@@ -29,5 +32,6 @@
   "collaborative": "Collaborative",
   "debateTurns": "Turns",
   "updatePersona": "Update Persona",
-  "deleteConfirmation": "Are you sure you want to delete this persona?"
+  "deleteConfirmation": "Are you sure you want to delete this persona?",
+  "participants": "Participants"
 }
