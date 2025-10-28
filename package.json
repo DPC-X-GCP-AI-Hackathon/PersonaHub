@@ -7,16 +7,21 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "jest",
+    "server": "node server.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "i18next": "^25.6.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "i18next-http-backend": "^3.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-i18next": "^16.2.1"
+    "react-i18next": "^16.2.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
