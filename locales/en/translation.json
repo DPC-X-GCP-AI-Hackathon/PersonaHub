@@ -22,5 +22,9 @@
   "createPersona": "Create Persona",
   "debateScope": "Debate Scope",
   "strict": "Strict",
-  "expansive": "Expansive"
+  "expansive": "Expansive",
+  "argumentationStyle": "Argumentation Style",
+  "adversarial": "Adversarial",
+  "collaborative": "Collaborative",
+  "debateTurns": "Turns"
 }

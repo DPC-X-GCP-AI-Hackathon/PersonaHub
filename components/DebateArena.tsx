@@ -22,6 +22,8 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   const [summary, setSummary] = useState('');
   const [participants, setParticipants] = useState<Persona[]>(initialParticipants);
   const [debateScope, setDebateScope] = useState('Strict');
+  const [argumentationStyle, setArgumentationStyle] = useState('Adversarial');
+  const [debateTurns, setDebateTurns] = useState(3);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,9 +62,10 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
     let currentMessages = [initialMessage];
 
-    for (let turn = 0; turn < DEBATE_TURNS * participantsWithStances.length; turn++) {
+    for (let turn = 0; turn < debateTurns * participantsWithStances.length; turn++) {
         const speakerIndex = turn % participantsWithStances.length;
         const currentSpeaker = participantsWithStances[speakerIndex];
+        const isFinalTurn = turn >= (debateTurns - 1) * participantsWithStances.length;
         
         const thinkingMessage: DebateMessage = {
             personaId: 'moderator',
@@ -73,7 +76,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
         setMessages(prev => [...prev, thinkingMessage]);
 
-        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope);
+        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn);
 
         const newResponseMessage: DebateMessage = {
             personaId: currentSpeaker.id,
@@ -118,6 +121,19 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
                 className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-purple-500 focus:border-purple-500"
             />
             <div className="flex items-center space-x-2">
+              <label htmlFor="debate-turns" className="text-sm font-medium text-gray-300">{t('debateTurns')}</label>
+              <input
+                  id="debate-turns"
+                  type="number"
+                  value={debateTurns}
+                  onChange={(e) => setDebateTurns(parseInt(e.target.value, 10))}
+                  disabled={isDebating}
+                  className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm w-20"
+                  min={1}
+                  max={5}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
               <label htmlFor="debate-scope" className="text-sm font-medium text-gray-300">{t('debateScope')}</label>
               <select
                   id="debate-scope"
@@ -128,6 +144,19 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
               >
                   <option value="Strict">{t('strict')}</option>
                   <option value="Expansive">{t('expansive')}</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label htmlFor="argumentation-style" className="text-sm font-medium text-gray-300">{t('argumentationStyle')}</label>
+              <select
+                  id="argumentation-style"
+                  value={argumentationStyle}
+                  onChange={(e) => setArgumentationStyle(e.target.value)}
+                  disabled={isDebating}
+                  className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm"
+              >
+                  <option value="Adversarial">{t('adversarial')}</option>
+                  <option value="Collaborative">{t('collaborative')}</option>
               </select>
             </div>
             <button

@@ -67,18 +67,33 @@ export async function generateDebateStance(systemPrompt: string, topic: string, 
 }
 
 
-export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string, debateScope: string): Promise<string> {
+export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string, debateScope: string, argumentationStyle: string, isFinalTurn: boolean): Promise<string> {
   const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
 
   let scopeInstruction = '';
+  let styleInstruction = '';
+  let finalTurnInstruction = '';
+
   if (language === 'ko') {
     scopeInstruction = debateScope === 'Strict'
       ? '응답은 토론 주제와 엄격하게 관련되어야 합니다.'
       : '주제와 관련된 파생적인 논의나 더 넓은 의미에 대한 토론을 권장합니다.';
+    styleInstruction = argumentationStyle === 'Adversarial'
+      ? '자신의 입장을 고수하며 토론을 이끌어가세요.'
+      : '다른 참여자와 합의점을 찾거나 종합적인 결론을 도출하는 것을 목표로 하세요. 다른 사람의 좋은 의견을 인정하고 중간 지점을 찾으려고 노력하세요.';
+    if (argumentationStyle === 'Collaborative' && isFinalTurn) {
+      finalTurnInstruction = '이제 마지막 턴입니다. 자신의 현재 입장을 요약하고, 다른 참여자의 가장 강력한 주장을 인정한 다음, 토론에서 나온 최상의 아이디어를 통합하여 종합적인 결론이나 합의문을 제안하세요.';
+    }
   } else {
     scopeInstruction = debateScope === 'Strict'
       ? 'Your response must be strictly related to the debate topic.'
       : 'You are encouraged to discuss related tangents and broader implications of the topic.';
+    styleInstruction = argumentationStyle === 'Adversarial'
+      ? 'Your goal is to win the debate by making the strongest case for your stance.'
+      : 'Your goal is to find a consensus or a synthesized conclusion with the other participants. Acknowledge good points from others and try to find a middle ground.';
+    if (argumentationStyle === 'Collaborative' && isFinalTurn) {
+      finalTurnInstruction = 'This is the final turn. Summarize your current position, acknowledge the strongest points from the other participants, and propose a synthesized conclusion or a statement of consensus that incorporates the best ideas from the debate.';
+    }
   }
   
   const prompt = `
@@ -92,6 +107,10 @@ export async function runDebateTurn(topic: string, history: DebateMessage[], cur
     Your specific stance on this topic is: "${currentSpeaker.stance}"
 
     You must argue consistently with this stance throughout the debate.
+
+    ${styleInstruction}
+
+    ${finalTurnInstruction}
 
     Instead of questioning the topic's value, focus on building a strong argument for your stance and driving the debate toward a conclusion.
     

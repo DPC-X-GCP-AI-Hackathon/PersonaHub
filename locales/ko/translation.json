@@ -22,5 +22,9 @@
   "createPersona": "페르소나 만들기",
   "debateScope": "토론 범위",
   "strict": "엄격",
-  "expansive": "확장"
+  "expansive": "확장",
+  "argumentationStyle": "토론 스타일",
+  "adversarial": "적대적",
+  "collaborative": "협력적",
+  "debateTurns": "턴 수"
 }
