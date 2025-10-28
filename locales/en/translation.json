@@ -19,5 +19,8 @@
   "systemPrompt": "System Prompt (Editable)",
   "systemPromptPlaceholder": "System prompt will be generated here...",
   "cancel": "Cancel",
-  "createPersona": "Create Persona"
+  "createPersona": "Create Persona",
+  "debateScope": "Debate Scope",
+  "strict": "Strict",
+  "expansive": "Expansive"
 }

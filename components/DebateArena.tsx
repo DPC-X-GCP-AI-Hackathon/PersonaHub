@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Persona, DebateMessage } from '../types';
-import { runDebateTurn, summarizeDebate } from '../services/geminiService';
+import { runDebateTurn, summarizeDebate, generateDebateStance } from '../services/geminiService';
 import ChatMessage from './ChatMessage';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import SparklesIcon from './icons/SparklesIcon';
@@ -13,14 +13,20 @@ interface DebateArenaProps {
 
 const DEBATE_TURNS = 3; // 3 turns per participant
 
-const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
+const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticipants }) => {
   const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState('');
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isDebating, setIsDebating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState('');
+  const [participants, setParticipants] = useState<Persona[]>(initialParticipants);
+  const [debateScope, setDebateScope] = useState('Strict');
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setParticipants(initialParticipants);
+  }, [initialParticipants]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,6 +39,15 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
     
     setIsDebating(true);
     setSummary('');
+
+    const participantsWithStances = await Promise.all(
+      participants.map(async (p) => ({
+        ...p,
+        stance: await generateDebateStance(p.systemPrompt, topic, i18n.language),
+      }))
+    );
+    setParticipants(participantsWithStances);
+
     const initialMessage: DebateMessage = {
       personaId: 'moderator',
       personaName: 'Moderator',
@@ -45,9 +60,9 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
 
     let currentMessages = [initialMessage];
 
-    for (let turn = 0; turn < DEBATE_TURNS * participants.length; turn++) {
-        const speakerIndex = turn % participants.length;
-        const currentSpeaker = participants[speakerIndex];
+    for (let turn = 0; turn < DEBATE_TURNS * participantsWithStances.length; turn++) {
+        const speakerIndex = turn % participantsWithStances.length;
+        const currentSpeaker = participantsWithStances[speakerIndex];
         
         const thinkingMessage: DebateMessage = {
             personaId: 'moderator',
@@ -58,7 +73,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
 
         setMessages(prev => [...prev, thinkingMessage]);
 
-        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language);
+        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope);
 
         const newResponseMessage: DebateMessage = {
             personaId: currentSpeaker.id,
@@ -102,6 +117,19 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
                 disabled={isDebating}
                 className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-purple-500 focus:border-purple-500"
             />
+            <div className="flex items-center space-x-2">
+              <label htmlFor="debate-scope" className="text-sm font-medium text-gray-300">{t('debateScope')}</label>
+              <select
+                  id="debate-scope"
+                  value={debateScope}
+                  onChange={(e) => setDebateScope(e.target.value)}
+                  disabled={isDebating}
+                  className="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-purple-500 focus:border-purple-500 text-sm"
+              >
+                  <option value="Strict">{t('strict')}</option>
+                  <option value="Expansive">{t('expansive')}</option>
+              </select>
+            </div>
             <button
                 onClick={startDebate}
                 disabled={isDebating || participants.length < 2 || !topic}

@@ -5,6 +5,7 @@ export interface Persona {
   description: string;
   systemPrompt: string;
   avatar: string;
+  stance?: string;
 }
 
 export interface DebateMessage {

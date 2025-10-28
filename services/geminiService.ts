@@ -38,9 +38,48 @@ export async function createPersonaPrompt(description: string): Promise<string> 
   }
 }
 
+export async function generateDebateStance(systemPrompt: string, topic: string, language: string): Promise<string> {
+  const prompt = `
+    Based on the following persona, defined by a system prompt, and the debate topic, generate a concise stance (a short sentence) that this persona would take.
 
-export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string): Promise<string> {
+    Persona System Prompt:
+    ---
+    ${systemPrompt}
+    ---
+
+    Debate Topic: "${topic}"
+
+    The stance should be a clear and direct opinion on the topic. For example, "I believe technology is the only way to solve this problem," or "I am strongly against this proposal."
+
+    The stance must be in ${language}.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating debate stance:", error);
+    return "I am unable to form an opinion on this topic.";
+  }
+}
+
+
+export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string, debateScope: string): Promise<string> {
   const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
+
+  let scopeInstruction = '';
+  if (language === 'ko') {
+    scopeInstruction = debateScope === 'Strict'
+      ? '응답은 토론 주제와 엄격하게 관련되어야 합니다.'
+      : '주제와 관련된 파생적인 논의나 더 넓은 의미에 대한 토론을 권장합니다.';
+  } else {
+    scopeInstruction = debateScope === 'Strict'
+      ? 'Your response must be strictly related to the debate topic.'
+      : 'You are encouraged to discuss related tangents and broader implications of the topic.';
+  }
   
   const prompt = `
     Your persona is defined by the following system prompt:
@@ -49,13 +88,19 @@ export async function runDebateTurn(topic: string, history: DebateMessage[], cur
     ---
 
     You are participating in a debate on the following topic: "${topic}".
+
+    Your specific stance on this topic is: "${currentSpeaker.stance}"
+
+    You must argue consistently with this stance throughout the debate.
+
+    Instead of questioning the topic's value, focus on building a strong argument for your stance and driving the debate toward a conclusion.
     
     Here is the debate history so far:
     ---
     ${conversationHistory}
     ---
 
-    Based on your persona, provide your next statement in the debate. Address the previous points if applicable and advance your own arguments. Your response should be concise and impactful. Your response must be strictly related to the debate topic. Your response must be in ${language}.
+    Based on your persona and your assigned stance, provide your next statement in the debate. Address the previous points if applicable and advance your own arguments. Your response should be concise and impactful. ${scopeInstruction} Your response must be in ${language}.
   `;
   
   try {
