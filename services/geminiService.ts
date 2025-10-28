@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Persona, DebateMessage } from '../types';
+import { Persona, DebateMessage, ChatMessage, ReplyOption } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -139,7 +139,7 @@ export async function summarizeDebate(topic: string, history: DebateMessage[], l
 
   const prompt = `
     Analyze the following debate on the topic "${topic}".
-    
+
     Debate Transcript:
     ---
     ${conversationHistory}
@@ -157,5 +157,163 @@ export async function summarizeDebate(topic: string, history: DebateMessage[], l
   } catch (error) {
     console.error("Error summarizing debate:", error);
     return "Error: Could not generate a summary.";
+  }
+}
+
+// ===== ChatRoom Functions =====
+
+/**
+ * 샘플 대화로부터 페르소나의 말투를 학습
+ */
+export async function learnPersonaFromConversation(
+  exampleMessages: ChatMessage[],
+  chatRoomContext: string,
+  language: string
+): Promise<string> {
+  const examples = exampleMessages
+    .filter(msg => msg.sender === 'user')
+    .map(msg => msg.text)
+    .join('\n');
+
+  const prompt = `
+    You are analyzing a user's messaging style from their past messages in a specific chat room context.
+
+    Chat Room Context: "${chatRoomContext}"
+
+    Example messages from the user:
+    ---
+    ${examples}
+    ---
+
+    Based on these messages, generate a detailed persona system prompt that captures:
+    1. **Tone and Formality**: Is it casual, formal, professional, or friendly?
+    2. **Language Patterns**: Do they use short sentences, long explanations, slang, or emojis?
+    3. **Typical Responses**: How do they usually respond to questions, invitations, or requests?
+    4. **Emotional Expression**: Are they warm, reserved, enthusiastic, or neutral?
+    5. **Context Awareness**: How does this person adapt their responses based on the chat room context (family, work, friends)?
+
+    The output should be a system prompt that will guide an AI to respond EXACTLY like this user would in this chat room.
+    The response must be in ${language}.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error learning persona from conversation:", error);
+    return "Error: Could not learn persona style. Please try again.";
+  }
+}
+
+/**
+ * 받은 메시지에 대한 자동 응답 옵션 생성 (짧은/보통/상세)
+ */
+export async function generateReplyOptions(
+  incomingMessage: string,
+  conversationHistory: ChatMessage[],
+  persona: Persona,
+  language: string
+): Promise<ReplyOption[]> {
+  const historyText = conversationHistory
+    .slice(-10) // 최근 10개만
+    .map(msg => {
+      const sender = msg.sender === 'user' ? 'Me' : msg.sender === 'incoming' ? 'Them' : 'AI';
+      return `${sender}: ${msg.text}`;
+    })
+    .join('\n');
+
+  const prompt = `
+    You are acting as a user's personal messaging assistant, trained to respond EXACTLY like they would.
+
+    Your Persona (how the user typically writes):
+    ---
+    ${persona.systemPrompt}
+    ---
+
+    Recent Conversation History:
+    ---
+    ${historyText}
+    ---
+
+    New Incoming Message:
+    "${incomingMessage}"
+
+    Generate THREE different reply options that the user might send:
+    1. **SHORT**: A very brief, quick response (5-15 characters, maybe just emoji or "ok", "ㅋㅋ", etc.)
+    2. **NORMAL**: A natural, typical response (1-2 sentences)
+    3. **DETAILED**: A longer, more thoughtful response (2-4 sentences with more context)
+
+    IMPORTANT:
+    - Match the user's typical tone, formality, and emoji usage
+    - Consider the conversation context
+    - Make responses feel natural and authentic to how this user writes
+    - Response must be in ${language}
+
+    Format your response as JSON:
+    {
+      "short": "reply text here",
+      "normal": "reply text here",
+      "detailed": "reply text here"
+    }
+
+    Only output valid JSON, nothing else.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    const jsonText = response.text.trim();
+    // JSON 파싱 시도
+    const parsed = JSON.parse(jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, ''));
+
+    return [
+      {
+        id: '1',
+        text: parsed.short || '',
+        tone: 'short',
+        confidence: 0.9
+      },
+      {
+        id: '2',
+        text: parsed.normal || '',
+        tone: 'normal',
+        confidence: 0.95
+      },
+      {
+        id: '3',
+        text: parsed.detailed || '',
+        tone: 'detailed',
+        confidence: 0.85
+      }
+    ];
+  } catch (error) {
+    console.error("Error generating reply options:", error);
+    // 기본 응답 반환
+    return [
+      {
+        id: '1',
+        text: language === 'ko' ? '응' : 'ok',
+        tone: 'short',
+        confidence: 0.5
+      },
+      {
+        id: '2',
+        text: language === 'ko' ? '알겠어, 확인했어' : 'Got it, thanks',
+        tone: 'normal',
+        confidence: 0.5
+      },
+      {
+        id: '3',
+        text: language === 'ko' ? '알겠어! 확인했고 나중에 자세히 답변할게' : 'Got it! I saw your message and will get back to you with more details later',
+        tone: 'detailed',
+        confidence: 0.5
+      }
+    ];
   }
 }
