@@ -39,7 +39,7 @@ export async function createPersonaPrompt(description: string): Promise<string> 
 }
 
 
-export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona): Promise<string> {
+export async function runDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string): Promise<string> {
   const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
   
   const prompt = `
@@ -55,7 +55,7 @@ export async function runDebateTurn(topic: string, history: DebateMessage[], cur
     ${conversationHistory}
     ---
 
-    Based on your persona, provide your next statement in the debate. Address the previous points if applicable and advance your own arguments. Your response should be concise and impactful.
+    Based on your persona, provide your next statement in the debate. Address the previous points if applicable and advance your own arguments. Your response should be concise and impactful. Your response must be strictly related to the debate topic. Your response must be in ${language}.
   `;
   
   try {
@@ -70,7 +70,7 @@ export async function runDebateTurn(topic: string, history: DebateMessage[], cur
   }
 }
 
-export async function summarizeDebate(topic: string, history: DebateMessage[]): Promise<string> {
+export async function summarizeDebate(topic: string, history: DebateMessage[], language: string): Promise<string> {
   const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
 
   const prompt = `
@@ -81,7 +81,7 @@ export async function summarizeDebate(topic: string, history: DebateMessage[]): 
     ${conversationHistory}
     ---
 
-    Provide a concise summary of the debate. Identify the key arguments from each participant, points of contention, and any potential consensus or conclusion. The summary should be neutral and objective.
+    Provide a concise summary of the debate. Identify the key arguments from each participant, points of contention, and any potential consensus or conclusion. The summary should be neutral and objective. The summary must be in ${language}.
   `;
 
   try {

@@ -14,7 +14,7 @@ interface DebateArenaProps {
 const DEBATE_TURNS = 3; // 3 turns per participant
 
 const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState('');
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isDebating, setIsDebating] = useState(false);
@@ -58,7 +58,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
 
         setMessages(prev => [...prev, thinkingMessage]);
 
-        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker);
+        const responseText = await runDebateTurn(topic, currentMessages, currentSpeaker, i18n.language);
 
         const newResponseMessage: DebateMessage = {
             personaId: currentSpeaker.id,
@@ -85,7 +85,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants }) => {
   
   const handleSummarize = async () => {
     setIsSummarizing(true);
-    const debateSummary = await summarizeDebate(topic, messages);
+    const debateSummary = await summarizeDebate(topic, messages, i18n.language);
     setSummary(debateSummary);
     setIsSummarizing(false);
   }
