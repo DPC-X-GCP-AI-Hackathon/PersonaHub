@@ -43,6 +43,17 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
   useEffect(scrollToBottom, [messages, isDebating]);
 
+  // Cleanup audio on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
   const speak = (audioBlob: Blob): Promise<void> => {
     return new Promise(async (resolve) => {
       if (!isAudioEnabled) {
@@ -76,6 +87,8 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
     setIsStopping(true);
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
     }
   };
 

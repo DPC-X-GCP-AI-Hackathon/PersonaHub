@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast, { Toaster } from 'react-hot-toast';
 import { Persona, ChatRoom, ChatMessage } from './types';
 import Header from './components/Header';
 import PersonaCard from './components/PersonaCard';
@@ -95,9 +96,10 @@ const App: React.FC = () => {
       }
       const createdPersona = await res.json();
       setPersonas(prev => [...prev, createdPersona]);
+      toast.success(t('personaCreated') || 'Persona created successfully');
     } catch (err) {
       console.error('Error creating persona:', err);
-      alert(t('errorCreatingPersona') || 'Failed to create persona');
+      toast.error(t('errorCreatingPersona') || 'Failed to create persona');
     }
   };
 
@@ -115,9 +117,10 @@ const App: React.FC = () => {
       }
       const returnedPersona = await res.json();
       setPersonas(prev => prev.map(p => p.id === returnedPersona.id ? returnedPersona : p));
+      toast.success(t('personaUpdated') || 'Persona updated successfully');
     } catch (err) {
       console.error('Error updating persona:', err);
-      alert(t('errorUpdatingPersona') || 'Failed to update persona');
+      toast.error(t('errorUpdatingPersona') || 'Failed to update persona');
     }
   };
 
@@ -132,9 +135,10 @@ const App: React.FC = () => {
         }
         setPersonas(prev => prev.filter(p => p.id !== personaId));
         setSelectedPersonaIds(prev => prev.filter(id => id !== personaId));
+        toast.success(t('personaDeleted') || 'Persona deleted successfully');
       } catch (err) {
         console.error('Error deleting persona:', err);
-        alert(t('errorDeletingPersona') || 'Failed to delete persona');
+        toast.error(t('errorDeletingPersona') || 'Failed to delete persona');
       }
     }
   };
@@ -160,9 +164,10 @@ const App: React.FC = () => {
       if (!res.ok) throw new Error('Failed to create chatroom');
       const created = await res.json();
       setChatRooms(prev => [...prev, created]);
+      toast.success(t('chatRoomCreated') || 'Chat room created successfully');
     } catch (err) {
       console.error('Error creating chatroom:', err);
-      alert('Failed to create chat room');
+      toast.error(t('errorCreatingChatRoom') || 'Failed to create chat room');
     }
   };
 
@@ -176,9 +181,10 @@ const App: React.FC = () => {
       if (!res.ok) throw new Error('Failed to update chatroom');
       const result = await res.json();
       setChatRooms(prev => prev.map(c => c.id === result.id ? result : c));
+      toast.success(t('chatRoomUpdated') || 'Chat room updated successfully');
     } catch (err) {
       console.error('Error updating chatroom:', err);
-      alert('Failed to update chat room');
+      toast.error(t('errorUpdatingChatRoom') || 'Failed to update chat room');
     }
   };
 
@@ -191,9 +197,10 @@ const App: React.FC = () => {
         if (!res.ok) throw new Error('Failed to delete chatroom');
         setChatRooms(prev => prev.filter(c => c.id !== id));
         if (selectedChatRoomId === id) setSelectedChatRoomId(null);
+        toast.success(t('chatRoomDeleted') || 'Chat room deleted successfully');
       } catch (err) {
         console.error('Error deleting chatroom:', err);
-        alert('Failed to delete chat room');
+        toast.error(t('errorDeletingChatRoom') || 'Failed to delete chat room');
       }
     }
   };
@@ -219,6 +226,29 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#1f2937',
+            color: '#fff',
+            border: '1px solid #374151',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
       <Header />
 
       {/* Tab Navigation */}

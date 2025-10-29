@@ -2,17 +2,79 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const helmet = require('helmet');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenAI, Modality, MediaResolution } = require('@google/genai');
+const { z } = require('zod');
+
+// Load environment variables (support .env.local for API key)
+require('dotenv').config({ path: '.env.local' });
 
 const app = express();
 const port = 3002;
 const PERSONAS_FILE = path.join(__dirname, 'data', 'personas.json');
 const CHATROOMS_FILE = path.join(__dirname, 'data', 'chatrooms.json');
 
-app.use(cors());
-app.use(bodyParser.json());
+// Initialize Gemini AI client
+if (!process.env.GEMINI_API_KEY) {
+  console.error('WARNING: GEMINI_API_KEY not found in environment variables');
+}
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+
+// Security middleware
+app.use(helmet());
+
+// CORS configuration with allowed origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8080'];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+// Request size limits
+app.use(bodyParser.json({ limit: '1mb' }));
+
+// Validation schemas
+const personaSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().min(1).max(500),
+  systemPrompt: z.string().min(1).max(5000),
+  avatar: z.string().url().optional(),
+  stance: z.string().optional()
+});
+
+const chatRoomSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().min(1).max(500),
+  personaId: z.string().optional(),
+  messages: z.array(z.any()).optional(),
+  exampleConversations: z.array(z.any()).optional()
+});
+
+// Validation middleware
+const validate = (schema) => {
+  return (req, res, next) => {
+    try {
+      schema.parse(req.body);
+      next();
+    } catch (error) {
+      res.status(400).json({
+        error: 'Validation failed',
+        details: error.errors
+      });
+    }
+  };
+};
 
 // Default personas to use if no data file exists
 const DEFAULT_PERSONAS = [
@@ -132,11 +194,25 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Load personas from file or use defaults
-function loadPersonas() {
+// File locking mechanism to prevent race conditions
+const fileLocks = new Map();
+
+async function acquireLock(file) {
+  while (fileLocks.get(file)) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  fileLocks.set(file, true);
+}
+
+function releaseLock(file) {
+  fileLocks.delete(file);
+}
+
+// Load personas from file or use defaults (async)
+async function loadPersonas() {
   try {
     if (fs.existsSync(PERSONAS_FILE)) {
-      const data = fs.readFileSync(PERSONAS_FILE, 'utf8');
+      const data = await fs.promises.readFile(PERSONAS_FILE, 'utf8');
       return JSON.parse(data);
     }
   } catch (error) {
@@ -145,20 +221,24 @@ function loadPersonas() {
   return DEFAULT_PERSONAS;
 }
 
-// Save personas to file
-function savePersonas(personas) {
+// Save personas to file (async with locking)
+async function savePersonas(personas) {
+  await acquireLock(PERSONAS_FILE);
   try {
-    fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2), 'utf8');
+    await fs.promises.writeFile(PERSONAS_FILE, JSON.stringify(personas, null, 2), 'utf8');
   } catch (error) {
     console.error('Error saving personas:', error);
+    throw error;
+  } finally {
+    releaseLock(PERSONAS_FILE);
   }
 }
 
-// Load chatrooms from file
-function loadChatRooms() {
+// Load chatrooms from file (async)
+async function loadChatRooms() {
   try {
     if (fs.existsSync(CHATROOMS_FILE)) {
-      const data = fs.readFileSync(CHATROOMS_FILE, 'utf8');
+      const data = await fs.promises.readFile(CHATROOMS_FILE, 'utf8');
       return JSON.parse(data);
     }
   } catch (error) {
@@ -167,17 +247,31 @@ function loadChatRooms() {
   return DEFAULT_CHATROOMS;
 }
 
-// Save chatrooms to file
-function saveChatRooms(chatrooms) {
+// Save chatrooms to file (async with locking)
+async function saveChatRooms(chatrooms) {
+  await acquireLock(CHATROOMS_FILE);
   try {
-    fs.writeFileSync(CHATROOMS_FILE, JSON.stringify(chatrooms, null, 2), 'utf8');
+    await fs.promises.writeFile(CHATROOMS_FILE, JSON.stringify(chatrooms, null, 2), 'utf8');
   } catch (error) {
     console.error('Error saving chatrooms:', error);
+    throw error;
+  } finally {
+    releaseLock(CHATROOMS_FILE);
   }
 }
 
-let personas = loadPersonas();
-let chatrooms = loadChatRooms();
+// Initialize data (must be async now)
+let personas = [];
+let chatrooms = [];
+
+async function initializeData() {
+  personas = await loadPersonas();
+  chatrooms = await loadChatRooms();
+  console.log(`Loaded ${personas.length} personas and ${chatrooms.length} chatrooms`);
+}
+
+// Initialize data before starting server
+initializeData();
 
 // Get all personas
 app.get('/api/personas', (req, res) => {
@@ -185,28 +279,43 @@ app.get('/api/personas', (req, res) => {
 });
 
 // Create a new persona
-app.post('/api/personas', (req, res) => {
-  const newPersona = { ...req.body, id: uuidv4() };
-  personas.push(newPersona);
-  savePersonas(personas);
-  res.status(201).json(newPersona);
+app.post('/api/personas', validate(personaSchema), async (req, res) => {
+  try {
+    const newPersona = { ...req.body, id: uuidv4() };
+    personas.push(newPersona);
+    await savePersonas(personas);
+    res.status(201).json(newPersona);
+  } catch (error) {
+    console.error('Error creating persona:', error);
+    res.status(500).json({ error: 'Failed to create persona' });
+  }
 });
 
 // Update a persona
-app.put('/api/personas/:id', (req, res) => {
-  const { id } = req.params;
-  const updatedPersona = req.body;
-  personas = personas.map(p => (p.id === id ? updatedPersona : p));
-  savePersonas(personas);
-  res.json(updatedPersona);
+app.put('/api/personas/:id', validate(personaSchema.partial()), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedPersona = req.body;
+    personas = personas.map(p => (p.id === id ? updatedPersona : p));
+    await savePersonas(personas);
+    res.json(updatedPersona);
+  } catch (error) {
+    console.error('Error updating persona:', error);
+    res.status(500).json({ error: 'Failed to update persona' });
+  }
 });
 
 // Delete a persona
-app.delete('/api/personas/:id', (req, res) => {
-  const { id } = req.params;
-  personas = personas.filter(p => p.id !== id);
-  savePersonas(personas);
-  res.status(204).send();
+app.delete('/api/personas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    personas = personas.filter(p => p.id !== id);
+    await savePersonas(personas);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting persona:', error);
+    res.status(500).json({ error: 'Failed to delete persona' });
+  }
 });
 
 // ===== ChatRoom Endpoints =====
@@ -217,59 +326,500 @@ app.get('/api/chatrooms', (req, res) => {
 });
 
 // Create a new chatroom
-app.post('/api/chatrooms', (req, res) => {
-  const newChatRoom = {
-    ...req.body,
-    id: uuidv4(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    messages: req.body.messages || [],
-    exampleConversations: req.body.exampleConversations || []
-  };
-  chatrooms.push(newChatRoom);
-  saveChatRooms(chatrooms);
-  res.status(201).json(newChatRoom);
+app.post('/api/chatrooms', validate(chatRoomSchema), async (req, res) => {
+  try {
+    const newChatRoom = {
+      ...req.body,
+      id: uuidv4(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: req.body.messages || [],
+      exampleConversations: req.body.exampleConversations || []
+    };
+    chatrooms.push(newChatRoom);
+    await saveChatRooms(chatrooms);
+    res.status(201).json(newChatRoom);
+  } catch (error) {
+    console.error('Error creating chatroom:', error);
+    res.status(500).json({ error: 'Failed to create chatroom' });
+  }
 });
 
 // Update a chatroom
-app.put('/api/chatrooms/:id', (req, res) => {
-  const { id } = req.params;
-  const updatedChatRoom = {
-    ...req.body,
-    updatedAt: new Date().toISOString()
-  };
-  chatrooms = chatrooms.map(c => (c.id === id ? updatedChatRoom : c));
-  saveChatRooms(chatrooms);
-  res.json(updatedChatRoom);
+app.put('/api/chatrooms/:id', validate(chatRoomSchema.partial()), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedChatRoom = {
+      ...req.body,
+      updatedAt: new Date().toISOString()
+    };
+    chatrooms = chatrooms.map(c => (c.id === id ? updatedChatRoom : c));
+    await saveChatRooms(chatrooms);
+    res.json(updatedChatRoom);
+  } catch (error) {
+    console.error('Error updating chatroom:', error);
+    res.status(500).json({ error: 'Failed to update chatroom' });
+  }
 });
 
 // Delete a chatroom
-app.delete('/api/chatrooms/:id', (req, res) => {
-  const { id } = req.params;
-  chatrooms = chatrooms.filter(c => c.id !== id);
-  saveChatRooms(chatrooms);
-  res.status(204).send();
+app.delete('/api/chatrooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    chatrooms = chatrooms.filter(c => c.id !== id);
+    await saveChatRooms(chatrooms);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting chatroom:', error);
+    res.status(500).json({ error: 'Failed to delete chatroom' });
+  }
 });
 
 // Update chatroom messages
-app.put('/api/chatrooms/:id/messages', (req, res) => {
-  const { id } = req.params;
-  const { messages } = req.body;
+app.put('/api/chatrooms/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { messages } = req.body;
 
-  chatrooms = chatrooms.map(c => {
-    if (c.id === id) {
-      return {
-        ...c,
-        messages,
-        updatedAt: new Date().toISOString()
-      };
+    chatrooms = chatrooms.map(c => {
+      if (c.id === id) {
+        return {
+          ...c,
+          messages,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return c;
+    });
+
+    await saveChatRooms(chatrooms);
+    const updated = chatrooms.find(c => c.id === id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating chatroom messages:', error);
+    res.status(500).json({ error: 'Failed to update chatroom messages' });
+  }
+});
+
+// ===== Gemini API Proxy Endpoints =====
+
+// Create persona prompt from description
+app.post('/api/gemini/create-persona-prompt', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const { description } = req.body;
+    const prompt = `
+    Analyze the following persona description and generate a detailed system prompt for an AI that will emulate this persona.
+    The system prompt should be a comprehensive guide for the AI's behavior, voice, and personality.
+
+    Persona Description: "${description}"
+
+    Generate a system prompt that includes:
+    - Tone and Style (e.g., formal, witty, sarcastic, empathetic)
+    - Core Beliefs and Values
+    - Areas of Expertise and Interest
+    - Common Phrases or Vocabulary
+    - Structural quirks in language (e.g., short sentences, complex analogies)
+    - Overall mission or goal when interacting.
+
+    The output should be ONLY the system prompt text, ready to be used to instruct an LLM. Do not include any other explanatory text.
+  `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    res.json({ systemPrompt: response.text.trim() });
+  } catch (error) {
+    console.error('Error creating persona prompt:', error);
+    res.status(500).json({ error: 'Failed to create persona prompt' });
+  }
+});
+
+// Generate debate stance
+app.post('/api/gemini/generate-debate-stance', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const { systemPrompt, topic, language } = req.body;
+    const prompt = `
+    Based on the following persona, defined by a system prompt, and the debate topic, generate a concise stance (a short sentence) that this persona would take.
+
+    Persona System Prompt:
+    ---
+    ${systemPrompt}
+    ---
+
+    Debate Topic: "${topic}"
+
+    The stance should be a clear and direct opinion on the topic. For example, "I believe technology is the only way to solve this problem," or "I am strongly against this proposal."
+
+    The stance must be in ${language}.
+  `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    res.json({ stance: response.text.trim() });
+  } catch (error) {
+    console.error('Error generating debate stance:', error);
+    res.status(500).json({ error: 'Failed to generate debate stance' });
+  }
+});
+
+// Run debate turn (with optional audio)
+app.post('/api/gemini/run-debate-turn', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const {
+      topic,
+      history,
+      currentSpeaker,
+      language,
+      debateScope,
+      argumentationStyle,
+      isFinalTurn,
+      isAudioEnabled
+    } = req.body;
+
+    const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
+
+    let scopeInstruction = '';
+    let styleInstruction = '';
+    let finalTurnInstruction = '';
+
+    if (language === 'ko') {
+      scopeInstruction = debateScope === 'Strict'
+        ? '응답은 토론 주제와 엄격하게 관련되어야 합니다.'
+        : '주제와 관련된 파생적인 논의나 더 넓은 의미에 대한 토론을 권장합니다.';
+      styleInstruction = argumentationStyle === 'Adversarial'
+        ? '자신의 입장을 고수하며 토론을 이끌어가세요.'
+        : '다른 참여자와 합의점을 찾거나 종합적인 결론을 도출하는 것을 목표로 하세요. 다른 사람의 좋은 의견을 인정하고 중간 지점을 찾으려고 노력하세요.';
+      if (argumentationStyle === 'Collaborative' && isFinalTurn) {
+        finalTurnInstruction = '이제 마지막 턴입니다. 자신의 현재 입장을 요약하고, 다른 참여자의 가장 강력한 주장을 인정한 다음, 토론에서 나온 최상의 아이디어를 통합하여 종합적인 결론이나 합의문을 제안하세요.';
+      }
+    } else {
+      scopeInstruction = debateScope === 'Strict'
+        ? 'Your response must be strictly related to the debate topic.'
+        : 'You are encouraged to discuss related tangents and broader implications of the topic.';
+      styleInstruction = argumentationStyle === 'Adversarial'
+        ? 'Your goal is to win the debate by making the strongest case for your stance.'
+        : 'Your goal is to find a consensus or a synthesized conclusion with the other participants. Acknowledge good points from others and try to find a middle ground.';
+      if (argumentationStyle === 'Collaborative' && isFinalTurn) {
+        finalTurnInstruction = 'This is the final turn. Summarize your current position, acknowledge the strongest points from the other participants, and propose a synthesized conclusion or a statement of consensus that incorporates the best ideas from the debate.';
+      }
     }
-    return c;
-  });
 
-  saveChatRooms(chatrooms);
-  const updated = chatrooms.find(c => c.id === id);
-  res.json(updated);
+    const prompt = `
+    Your persona is defined by the following system prompt:
+    ---
+    ${currentSpeaker.systemPrompt}
+    ---
+
+    You are participating in a debate on the following topic: "${topic}".
+
+    Your specific stance on this topic is: "${currentSpeaker.stance}"
+
+    You must argue consistently with this stance throughout the debate.
+
+    ${styleInstruction}
+
+    ${finalTurnInstruction}
+
+    Instead of questioning the topic's value, focus on building a strong argument for your stance and driving the debate toward a conclusion.
+
+    Here is the debate history so far:
+    ---
+    ${conversationHistory}
+    ---
+
+    Based on your persona and your assigned stance, provide your next statement in the debate. Address the previous points if applicable and advance your own arguments. Your response should be concise and impactful. ${scopeInstruction} Your response must be in ${language}.
+  `;
+
+    if (isAudioEnabled) {
+      const model = 'models/gemini-2.5-flash-native-audio-preview-09-2025';
+
+      const config = {
+        responseModalities: [Modality.AUDIO, Modality.TEXT],
+        mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: 'Zephyr',
+            }
+          }
+        },
+        contextWindowCompression: {
+          triggerTokens: '25600',
+          slidingWindow: { targetTokens: '12800' },
+        },
+      };
+
+      const responseQueue = [];
+
+      const session = await ai.live.connect({
+        model,
+        callbacks: {
+          onmessage: function (message) {
+            responseQueue.push(message);
+          },
+        },
+        config
+      });
+
+      session.sendClientContent({
+        turns: [{ text: prompt }]
+      });
+
+      let text = '';
+      const audioParts = [];
+      let mimeType = '';
+
+      let done = false;
+      while (!done) {
+        const message = responseQueue.shift();
+        if (message) {
+          if (message.serverContent?.modelTurn?.parts) {
+            const part = message.serverContent?.modelTurn?.parts?.[0];
+            if (part?.text) {
+              text += part.text;
+            }
+            if (part?.inlineData) {
+              audioParts.push(part.inlineData.data ?? '');
+              mimeType = part.inlineData.mimeType ?? '';
+            }
+          }
+          if (message.serverContent && message.serverContent.turnComplete) {
+            done = true;
+          }
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      session.close();
+
+      res.json({
+        text: text.trim(),
+        audioParts,
+        mimeType
+      });
+    } else {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ parts: [{ text: prompt }] }],
+      });
+
+      res.json({
+        text: response.text.trim(),
+        audioParts: [],
+        mimeType: ''
+      });
+    }
+  } catch (error) {
+    console.error('Error running debate turn:', error);
+    res.status(500).json({ error: 'Failed to run debate turn' });
+  }
+});
+
+// Summarize debate
+app.post('/api/gemini/summarize-debate', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const { topic, history, language } = req.body;
+    const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
+
+    const prompt = `
+    Analyze the following debate on the topic "${topic}".
+
+    Debate Transcript:
+    ---
+    ${conversationHistory}
+    ---
+
+    Provide a concise summary of the debate. Identify the key arguments from each participant, points of contention, and any potential consensus or conclusion. The summary should be neutral and objective. The summary must be in ${language}.
+  `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    res.json({ summary: response.text.trim() });
+  } catch (error) {
+    console.error('Error summarizing debate:', error);
+    res.status(500).json({ error: 'Failed to summarize debate' });
+  }
+});
+
+// Learn persona from conversation
+app.post('/api/gemini/learn-persona', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const { exampleMessages, chatRoomContext, language } = req.body;
+    const examples = exampleMessages
+      .filter(msg => msg.sender === 'user')
+      .map(msg => msg.text)
+      .join('\n');
+
+    const prompt = `
+    You are analyzing a user's messaging style from their past messages in a specific chat room context.
+
+    Chat Room Context: "${chatRoomContext}"
+
+    Example messages from the user:
+    ---
+    ${examples}
+    ---
+
+    Based on these messages, generate a detailed persona system prompt that captures:
+    1. **Tone and Formality**: Is it casual, formal, professional, or friendly?
+    2. **Language Patterns**: Do they use short sentences, long explanations, slang, or emojis?
+    3. **Typical Responses**: How do they usually respond to questions, invitations, or requests?
+    4. **Emotional Expression**: Are they warm, reserved, enthusiastic, or neutral?
+    5. **Context Awareness**: How does this person adapt their responses based on the chat room context (family, work, friends)?
+
+    The output should be a system prompt that will guide an AI to respond EXACTLY like this user would in this chat room.
+    The response must be in ${language}.
+  `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    res.json({ systemPrompt: response.text.trim() });
+  } catch (error) {
+    console.error('Error learning persona:', error);
+    res.status(500).json({ error: 'Failed to learn persona from conversation' });
+  }
+});
+
+// Generate reply options
+app.post('/api/gemini/generate-reply-options', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({ error: 'Gemini API is not configured' });
+  }
+
+  try {
+    const { incomingMessage, conversationHistory, persona, language } = req.body;
+    const historyText = conversationHistory
+      .slice(-10)
+      .map(msg => {
+        const sender = msg.sender === 'user' ? 'Me' : msg.sender === 'incoming' ? 'Them' : 'AI';
+        return `${sender}: ${msg.text}`;
+      })
+      .join('\n');
+
+    const prompt = `
+    You are acting as a user's personal messaging assistant, trained to respond EXACTLY like they would.
+
+    Your Persona (how the user typically writes):
+    ---
+    ${persona.systemPrompt}
+    ---
+
+    Recent Conversation History:
+    ---
+    ${historyText}
+    ---
+
+    New Incoming Message:
+    "${incomingMessage}"
+
+    Generate THREE different reply options that the user might send:
+    1. **SHORT**: A very brief, quick response (5-15 characters, maybe just emoji or "ok", "ㅋㅋ", etc.)
+    2. **NORMAL**: A natural, typical response (1-2 sentences)
+    3. **DETAILED**: A longer, more thoughtful response (2-4 sentences with more context)
+
+    IMPORTANT:
+    - Match the user's typical tone, formality, and emoji usage
+    - Consider the conversation context
+    - Make responses feel natural and authentic to how this user writes
+    - Response must be in ${language}
+
+    Format your response as JSON:
+    {
+      "short": "reply text here",
+      "normal": "reply text here",
+      "detailed": "reply text here"
+    }
+
+    Only output valid JSON, nothing else.
+  `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    const jsonText = response.text.trim();
+    const parsed = JSON.parse(jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, ''));
+
+    const replyOptions = [
+      {
+        id: '1',
+        text: parsed.short || '',
+        tone: 'short',
+        confidence: 0.9
+      },
+      {
+        id: '2',
+        text: parsed.normal || '',
+        tone: 'normal',
+        confidence: 0.95
+      },
+      {
+        id: '3',
+        text: parsed.detailed || '',
+        tone: 'detailed',
+        confidence: 0.85
+      }
+    ];
+
+    res.json({ replyOptions });
+  } catch (error) {
+    console.error('Error generating reply options:', error);
+    // Return fallback options
+    const fallbackOptions = [
+      {
+        id: '1',
+        text: language === 'ko' ? '응' : 'ok',
+        tone: 'short',
+        confidence: 0.5
+      },
+      {
+        id: '2',
+        text: language === 'ko' ? '알겠어, 확인했어' : 'Got it, thanks',
+        tone: 'normal',
+        confidence: 0.5
+      },
+      {
+        id: '3',
+        text: language === 'ko' ? '알겠어! 확인했고 나중에 자세히 답변할게' : 'Got it! I saw your message and will get back to you with more details later',
+        tone: 'detailed',
+        confidence: 0.5
+      }
+    ];
+    res.json({ replyOptions: fallbackOptions });
+  }
 });
 
 app.listen(port, () => {
