@@ -132,8 +132,14 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
         const speakerIndex = turn % participantsWithStances.length;
         const currentSpeaker = participantsWithStances[speakerIndex];
+
+        if (!currentSpeaker) {
+          console.error('Current speaker not found');
+          continue;
+        }
+
         const isFinalTurn = turn >= (debateTurns - 1) * participantsWithStances.length;
-        
+
         const thinkingMessage: DebateMessage = {
             personaId: 'moderator',
             personaName: 'Moderator',

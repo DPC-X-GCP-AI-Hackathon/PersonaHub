@@ -152,7 +152,7 @@ const ChatRoomSimulator: React.FC<ChatRoomSimulatorProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              {replyOptions.map((option, index) => (
+              {replyOptions.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => handleSelectReply(option)}

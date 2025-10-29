@@ -102,7 +102,7 @@ interface WavConversionOptions {
 
 function parseMimeType(mimeType : string): WavConversionOptions {
   const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
-  const [_, format] = fileType.split('/');
+  const [, format] = (fileType || '').split('/');
 
   const options : Partial<WavConversionOptions> = {
     numChannels: 1,
@@ -118,7 +118,7 @@ function parseMimeType(mimeType : string): WavConversionOptions {
 
   for (const param of params) {
     const [key, value] = param.split('=').map(s => s.trim());
-    if (key === 'rate') {
+    if (key === 'rate' && value) {
       options.sampleRate = parseInt(value, 10);
     }
   }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatRoom, Persona, ChatMessage } from '../types';
-import { learnPersonaFromConversation, createPersonaPrompt } from '../services/geminiService';
+import { learnPersonaFromConversation } from '../services/geminiService';
 import SparklesIcon from './icons/SparklesIcon';
 
 interface ChatRoomCreatorProps {

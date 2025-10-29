@@ -21,8 +21,9 @@ const ChatRoomCard: React.FC<ChatRoomCardProps> = ({
   onDelete
 }) => {
   const messageCount = chatRoom.messages?.length || 0;
-  const lastMessageTime = chatRoom.messages?.length
-    ? new Date(chatRoom.messages[chatRoom.messages.length - 1].timestamp)
+  const lastMessage = chatRoom.messages?.[chatRoom.messages.length - 1];
+  const lastMessageTime = lastMessage
+    ? new Date(lastMessage.timestamp)
     : new Date(chatRoom.updatedAt);
 
   return (
