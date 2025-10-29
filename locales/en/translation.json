@@ -83,5 +83,9 @@
   "nameAndDescriptionRequired": "Name and description are required.",
   "atLeastTwoExamples": "Please provide at least 2 example messages.",
   "errorLearningPersona": "Failed to learn persona style. Please try again.",
-  "allFieldsRequired": "All fields are required."
+  "allFieldsRequired": "All fields are required.",
+  "llmSelector": {
+    "default": "Default",
+    "audioSupport": "Supports audio generation"
+  }
 }

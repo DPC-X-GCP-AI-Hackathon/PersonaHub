@@ -8,12 +8,14 @@ interface ChatRoomSimulatorProps {
   chatRoom: ChatRoom;
   persona: Persona;
   onUpdateMessages: (chatRoomId: string, messages: ChatMessage[]) => void;
+  selectedProvider?: string;
 }
 
 const ChatRoomSimulator: React.FC<ChatRoomSimulatorProps> = ({
   chatRoom,
   persona,
-  onUpdateMessages
+  onUpdateMessages,
+  selectedProvider
 }) => {
   const { t, i18n } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>(chatRoom.messages || []);
@@ -51,7 +53,8 @@ const ChatRoomSimulator: React.FC<ChatRoomSimulatorProps> = ({
         newMessage.text,
         updatedMessages,
         persona,
-        i18n.language
+        i18n.language,
+        selectedProvider
       );
       setReplyOptions(options);
     } catch (error) {

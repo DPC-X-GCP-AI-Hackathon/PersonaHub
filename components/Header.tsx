@@ -2,8 +2,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import SparklesIcon from './icons/SparklesIcon';
+import LLMSelector from './LLMSelector';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  selectedProvider: string | undefined;
+  onProviderChange: (provider: string | undefined) => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ selectedProvider, onProviderChange }) => {
   const { i18n } = useTranslation();
 
   const changeLanguage = (lng: string) => {
@@ -19,17 +25,24 @@ const Header: React.FC = () => {
             Persona<span className="text-purple-400">Hub</span>
           </h1>
         </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => changeLanguage('en')}
-            className={`px-3 py-1 text-sm rounded-md ${i18n.language === 'en' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
-            English
-          </button>
-          <button
-            onClick={() => changeLanguage('ko')}
-            className={`px-3 py-1 text-sm rounded-md ${i18n.language === 'ko' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
-            한국어
-          </button>
+        <div className="flex items-center space-x-4">
+          <LLMSelector
+            selectedProvider={selectedProvider}
+            onProviderChange={onProviderChange}
+          />
+          <div className="h-6 w-px bg-gray-700"></div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => changeLanguage('en')}
+              className={`px-3 py-1 text-sm rounded-md ${i18n.language === 'en' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              English
+            </button>
+            <button
+              onClick={() => changeLanguage('ko')}
+              className={`px-3 py-1 text-sm rounded-md ${i18n.language === 'ko' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              한국어
+            </button>
+          </div>
         </div>
       </div>
     </header>

@@ -4,12 +4,38 @@ import { Persona, DebateMessage, ChatMessage, ReplyOption } from '../types';
 // Base API URL - proxied through backend to keep API key secure
 const API_BASE = '/api/gemini';
 
-export async function createPersonaPrompt(description: string): Promise<string> {
+export interface LLMProvider {
+  name: string;
+  available: boolean;
+  supportsAudio: boolean;
+  isDefault: boolean;
+}
+
+/**
+ * Fetch available LLM providers from the backend
+ */
+export async function getAvailableLLMProviders(): Promise<LLMProvider[]> {
+  try {
+    const response = await fetch('/api/llm/providers');
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.providers || [];
+  } catch (error) {
+    console.error("Error fetching LLM providers:", error);
+    return [];
+  }
+}
+
+export async function createPersonaPrompt(description: string, provider?: string): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/create-persona-prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description })
+      body: JSON.stringify({ description, provider })
     });
 
     if (!response.ok) {
@@ -24,12 +50,12 @@ export async function createPersonaPrompt(description: string): Promise<string> 
   }
 }
 
-export async function generateDebateStance(systemPrompt: string, topic: string, language: string): Promise<string> {
+export async function generateDebateStance(systemPrompt: string, topic: string, language: string, provider?: string): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/generate-debate-stance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemPrompt, topic, language })
+      body: JSON.stringify({ systemPrompt, topic, language, provider })
     });
 
     if (!response.ok) {
@@ -45,7 +71,7 @@ export async function generateDebateStance(systemPrompt: string, topic: string, 
 }
 
 
-export async function runLiveDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string, debateScope: string, argumentationStyle: string, isFinalTurn: boolean, isAudioEnabled: boolean): Promise<{text: string, audio: Blob}> {
+export async function runLiveDebateTurn(topic: string, history: DebateMessage[], currentSpeaker: Persona, language: string, debateScope: string, argumentationStyle: string, isFinalTurn: boolean, isAudioEnabled: boolean, provider?: string): Promise<{text: string, audio: Blob}> {
   try {
     const response = await fetch(`${API_BASE}/run-debate-turn`, {
       method: 'POST',
@@ -58,7 +84,8 @@ export async function runLiveDebateTurn(topic: string, history: DebateMessage[],
         debateScope,
         argumentationStyle,
         isFinalTurn,
-        isAudioEnabled
+        isAudioEnabled,
+        provider
       })
     });
 
@@ -161,12 +188,12 @@ function createWavHeader(dataLength: number, options: WavConversionOptions): Arr
   return buffer;
 }
 
-export async function summarizeDebate(topic: string, history: DebateMessage[], language: string): Promise<string> {
+export async function summarizeDebate(topic: string, history: DebateMessage[], language: string, provider?: string): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/summarize-debate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, history, language })
+      body: JSON.stringify({ topic, history, language, provider })
     });
 
     if (!response.ok) {
@@ -189,13 +216,14 @@ export async function summarizeDebate(topic: string, history: DebateMessage[], l
 export async function learnPersonaFromConversation(
   exampleMessages: ChatMessage[],
   chatRoomContext: string,
-  language: string
+  language: string,
+  provider?: string
 ): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/learn-persona`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exampleMessages, chatRoomContext, language })
+      body: JSON.stringify({ exampleMessages, chatRoomContext, language, provider })
     });
 
     if (!response.ok) {
@@ -217,7 +245,8 @@ export async function generateReplyOptions(
   incomingMessage: string,
   conversationHistory: ChatMessage[],
   persona: Persona,
-  language: string
+  language: string,
+  provider?: string
 ): Promise<ReplyOption[]> {
   try {
     const response = await fetch(`${API_BASE}/generate-reply-options`, {
@@ -227,7 +256,8 @@ export async function generateReplyOptions(
         incomingMessage,
         conversationHistory,
         persona,
-        language
+        language,
+        provider
       })
     });
 

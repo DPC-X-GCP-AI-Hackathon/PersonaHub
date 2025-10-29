@@ -6,8 +6,8 @@ const helmet = require('helmet');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { GoogleGenAI, Modality, MediaResolution } = require('@google/genai');
 const { z } = require('zod');
+const llmProvider = require('./server/llm-providers/index.cjs');
 
 // Load environment variables (support .env.local for API key)
 require('dotenv').config({ path: '.env.local' });
@@ -17,11 +17,24 @@ const port = 3002;
 const PERSONAS_FILE = path.join(__dirname, 'data', 'personas.json');
 const CHATROOMS_FILE = path.join(__dirname, 'data', 'chatrooms.json');
 
-// Initialize Gemini AI client
-if (!process.env.GEMINI_API_KEY) {
-  console.error('WARNING: GEMINI_API_KEY not found in environment variables');
-}
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+// Initialize LLM Provider Manager
+console.log('🤖 Initializing LLM providers...');
+llmProvider.initialize({
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY
+  },
+  ollama: {
+    enabled: process.env.OLLAMA_ENABLED !== 'false',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    model: process.env.OLLAMA_MODEL || 'llama3.2'
+  },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    baseUrl: process.env.OPENAI_BASE_URL,
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  },
+  defaultProvider: process.env.DEFAULT_LLM_PROVIDER || 'gemini'
+});
 
 // Security middleware
 app.use(helmet());
@@ -401,16 +414,23 @@ app.put('/api/chatrooms/:id/messages', async (req, res) => {
   }
 });
 
-// ===== Gemini API Proxy Endpoints =====
+// ===== LLM API Proxy Endpoints =====
+
+// Get available LLM providers
+app.get('/api/llm/providers', async (req, res) => {
+  try {
+    const providers = await llmProvider.getAvailableProviders();
+    res.json({ providers });
+  } catch (error) {
+    console.error('Error getting providers:', error);
+    res.status(500).json({ error: 'Failed to get providers' });
+  }
+});
 
 // Create persona prompt from description
 app.post('/api/gemini/create-persona-prompt', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
-    const { description } = req.body;
+    const { description, provider } = req.body;
     const prompt = `
     Analyze the following persona description and generate a detailed system prompt for an AI that will emulate this persona.
     The system prompt should be a comprehensive guide for the AI's behavior, voice, and personality.
@@ -428,26 +448,18 @@ app.post('/api/gemini/create-persona-prompt', async (req, res) => {
     The output should be ONLY the system prompt text, ready to be used to instruct an LLM. Do not include any other explanatory text.
   `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ parts: [{ text: prompt }] }],
-    });
-
-    res.json({ systemPrompt: response.text.trim() });
+    const systemPrompt = await llmProvider.generateText(prompt, { provider });
+    res.json({ systemPrompt });
   } catch (error) {
     console.error('Error creating persona prompt:', error);
-    res.status(500).json({ error: 'Failed to create persona prompt' });
+    res.status(500).json({ error: 'Failed to create persona prompt', details: error.message });
   }
 });
 
 // Generate debate stance
 app.post('/api/gemini/generate-debate-stance', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
-    const { systemPrompt, topic, language } = req.body;
+    const { systemPrompt, topic, language, provider } = req.body;
     const prompt = `
     Based on the following persona, defined by a system prompt, and the debate topic, generate a concise stance (a short sentence) that this persona would take.
 
@@ -463,24 +475,17 @@ app.post('/api/gemini/generate-debate-stance', async (req, res) => {
     The stance must be in ${language}.
   `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ parts: [{ text: prompt }] }],
-    });
+    const stance = await llmProvider.generateText(prompt, { provider });
 
-    res.json({ stance: response.text.trim() });
+    res.json({ stance });
   } catch (error) {
     console.error('Error generating debate stance:', error);
-    res.status(500).json({ error: 'Failed to generate debate stance' });
+    res.status(500).json({ error: 'Failed to generate debate stance', details: error.message });
   }
 });
 
 // Run debate turn (with optional audio)
 app.post('/api/gemini/run-debate-turn', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
     const {
       topic,
@@ -490,7 +495,8 @@ app.post('/api/gemini/run-debate-turn', async (req, res) => {
       debateScope,
       argumentationStyle,
       isFinalTurn,
-      isAudioEnabled
+      isAudioEnabled,
+      provider
     } = req.body;
 
     const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
@@ -548,99 +554,26 @@ app.post('/api/gemini/run-debate-turn', async (req, res) => {
   `;
 
     if (isAudioEnabled) {
-      const model = 'models/gemini-2.5-flash-native-audio-preview-09-2025';
-
-      const config = {
-        responseModalities: [Modality.AUDIO, Modality.TEXT],
-        mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: 'Zephyr',
-            }
-          }
-        },
-        contextWindowCompression: {
-          triggerTokens: '25600',
-          slidingWindow: { targetTokens: '12800' },
-        },
-      };
-
-      const responseQueue = [];
-
-      const session = await ai.live.connect({
-        model,
-        callbacks: {
-          onmessage: function (message) {
-            responseQueue.push(message);
-          },
-        },
-        config
-      });
-
-      session.sendClientContent({
-        turns: [{ text: prompt }]
-      });
-
-      let text = '';
-      const audioParts = [];
-      let mimeType = '';
-
-      let done = false;
-      while (!done) {
-        const message = responseQueue.shift();
-        if (message) {
-          if (message.serverContent?.modelTurn?.parts) {
-            const part = message.serverContent?.modelTurn?.parts?.[0];
-            if (part?.text) {
-              text += part.text;
-            }
-            if (part?.inlineData) {
-              audioParts.push(part.inlineData.data ?? '');
-              mimeType = part.inlineData.mimeType ?? '';
-            }
-          }
-          if (message.serverContent && message.serverContent.turnComplete) {
-            done = true;
-          }
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-
-      session.close();
-
-      res.json({
-        text: text.trim(),
-        audioParts,
-        mimeType
-      });
+      const result = await llmProvider.generateWithAudio(prompt, { provider });
+      res.json(result);
     } else {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ parts: [{ text: prompt }] }],
-      });
-
+      const text = await llmProvider.generateText(prompt, { provider });
       res.json({
-        text: response.text.trim(),
+        text,
         audioParts: [],
         mimeType: ''
       });
     }
   } catch (error) {
     console.error('Error running debate turn:', error);
-    res.status(500).json({ error: 'Failed to run debate turn' });
+    res.status(500).json({ error: 'Failed to run debate turn', details: error.message });
   }
 });
 
 // Summarize debate
 app.post('/api/gemini/summarize-debate', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
-    const { topic, history, language } = req.body;
+    const { topic, history, language, provider } = req.body;
     const conversationHistory = history.map(msg => `${msg.personaName}: ${msg.text}`).join('\n');
 
     const prompt = `
@@ -654,26 +587,19 @@ app.post('/api/gemini/summarize-debate', async (req, res) => {
     Provide a concise summary of the debate. Identify the key arguments from each participant, points of contention, and any potential consensus or conclusion. The summary should be neutral and objective. The summary must be in ${language}.
   `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ parts: [{ text: prompt }] }],
-    });
+    const summary = await llmProvider.generateText(prompt, { provider });
 
-    res.json({ summary: response.text.trim() });
+    res.json({ summary });
   } catch (error) {
     console.error('Error summarizing debate:', error);
-    res.status(500).json({ error: 'Failed to summarize debate' });
+    res.status(500).json({ error: 'Failed to summarize debate', details: error.message });
   }
 });
 
 // Learn persona from conversation
 app.post('/api/gemini/learn-persona', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
-    const { exampleMessages, chatRoomContext, language } = req.body;
+    const { exampleMessages, chatRoomContext, language, provider } = req.body;
     const examples = exampleMessages
       .filter(msg => msg.sender === 'user')
       .map(msg => msg.text)
@@ -700,26 +626,19 @@ app.post('/api/gemini/learn-persona', async (req, res) => {
     The response must be in ${language}.
   `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ parts: [{ text: prompt }] }],
-    });
+    const systemPrompt = await llmProvider.generateText(prompt, { provider });
 
-    res.json({ systemPrompt: response.text.trim() });
+    res.json({ systemPrompt });
   } catch (error) {
     console.error('Error learning persona:', error);
-    res.status(500).json({ error: 'Failed to learn persona from conversation' });
+    res.status(500).json({ error: 'Failed to learn persona from conversation', details: error.message });
   }
 });
 
 // Generate reply options
 app.post('/api/gemini/generate-reply-options', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'Gemini API is not configured' });
-  }
-
   try {
-    const { incomingMessage, conversationHistory, persona, language } = req.body;
+    const { incomingMessage, conversationHistory, persona, language, provider } = req.body;
     const historyText = conversationHistory
       .slice(-10)
       .map(msg => {
@@ -765,12 +684,9 @@ app.post('/api/gemini/generate-reply-options', async (req, res) => {
     Only output valid JSON, nothing else.
   `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ parts: [{ text: prompt }] }],
-    });
+    const responseText = await llmProvider.generateText(prompt, { provider });
 
-    const jsonText = response.text.trim();
+    const jsonText = responseText.trim();
     const parsed = JSON.parse(jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, ''));
 
     const replyOptions = [

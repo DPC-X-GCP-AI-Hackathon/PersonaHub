@@ -18,6 +18,9 @@ const App: React.FC = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('debate');
 
+  // LLM Provider state
+  const [selectedProvider, setSelectedProvider] = useState<string | undefined>(undefined);
+
   // Persona state
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
@@ -262,7 +265,10 @@ const App: React.FC = () => {
           },
         }}
       />
-      <Header />
+      <Header
+        selectedProvider={selectedProvider}
+        onProviderChange={setSelectedProvider}
+      />
 
       {/* Tab Navigation */}
       <div className="bg-gray-800 border-b border-gray-700">
@@ -344,10 +350,11 @@ const App: React.FC = () => {
             </div>
 
             {selectedPersonas.length >= 2 && (
-              <DebateArena 
-                participants={selectedPersonas} 
+              <DebateArena
+                participants={selectedPersonas}
                 onDebateStateChange={setIsDebateInProgress}
                 isDebateInProgress={isDebateInProgress}
+                selectedProvider={selectedProvider}
               />
             )}
           </>
@@ -406,6 +413,7 @@ const App: React.FC = () => {
                     chatRoom={selectedChatRoom}
                     persona={selectedChatRoomPersona}
                     onUpdateMessages={handleUpdateMessages}
+                    selectedProvider={selectedProvider}
                   />
                 )}
               </>
@@ -420,6 +428,7 @@ const App: React.FC = () => {
           onClose={handleCloseCreator}
           onPersonaCreate={handlePersonaCreate}
           onPersonaUpdate={handlePersonaUpdate}
+          selectedProvider={selectedProvider}
         />
       )}
 
@@ -434,6 +443,7 @@ const App: React.FC = () => {
           onChatRoomCreate={handleChatRoomCreate}
           onChatRoomUpdate={handleChatRoomUpdate}
           onPersonaCreate={handlePersonaCreate}
+          selectedProvider={selectedProvider}
         />
       )}
     </div>

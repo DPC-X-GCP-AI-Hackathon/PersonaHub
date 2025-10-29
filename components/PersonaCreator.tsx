@@ -10,9 +10,10 @@ interface PersonaCreatorProps {
   onClose: () => void;
   onPersonaCreate: (newPersona: Omit<Persona, 'id'>) => void;
   onPersonaUpdate: (updatedPersona: Persona) => void;
+  selectedProvider?: string;
 }
 
-const PersonaCreator: React.FC<PersonaCreatorProps> = ({ personaToEdit, onClose, onPersonaCreate, onPersonaUpdate }) => {
+const PersonaCreator: React.FC<PersonaCreatorProps> = ({ personaToEdit, onClose, onPersonaCreate, onPersonaUpdate, selectedProvider }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -37,7 +38,7 @@ const PersonaCreator: React.FC<PersonaCreatorProps> = ({ personaToEdit, onClose,
     }
     setError('');
     setIsGenerating(true);
-    const generatedPrompt = await createPersonaPrompt(description);
+    const generatedPrompt = await createPersonaPrompt(description, selectedProvider);
     setSystemPrompt(generatedPrompt);
     setIsGenerating(false);
   };

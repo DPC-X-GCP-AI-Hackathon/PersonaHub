@@ -11,6 +11,7 @@ interface ChatRoomCreatorProps {
   onChatRoomCreate: (newChatRoom: Omit<ChatRoom, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onChatRoomUpdate: (updatedChatRoom: ChatRoom) => void;
   onPersonaCreate: (newPersona: Omit<Persona, 'id'>) => void;
+  selectedProvider?: string;
 }
 
 const ChatRoomCreator: React.FC<ChatRoomCreatorProps> = ({
@@ -19,7 +20,8 @@ const ChatRoomCreator: React.FC<ChatRoomCreatorProps> = ({
   onClose,
   onChatRoomCreate,
   onChatRoomUpdate,
-  onPersonaCreate
+  onPersonaCreate,
+  selectedProvider
 }) => {
   const { t, i18n } = useTranslation();
   const [name, setName] = useState('');
@@ -78,7 +80,8 @@ const ChatRoomCreator: React.FC<ChatRoomCreatorProps> = ({
       const learnedPrompt = await learnPersonaFromConversation(
         exampleChatMessages,
         `${name} - ${description}`,
-        i18n.language
+        i18n.language,
+        selectedProvider
       );
 
       // 새 페르소나 생성

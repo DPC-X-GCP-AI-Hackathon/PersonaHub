@@ -13,9 +13,10 @@ interface DebateArenaProps {
   participants: Persona[];
   onDebateStateChange: (isDebating: boolean) => void;
   isDebateInProgress: boolean;
+  selectedProvider?: string;
 }
 
-const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticipants, onDebateStateChange, isDebateInProgress }) => {
+const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticipants, onDebateStateChange, isDebateInProgress, selectedProvider }) => {
   const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState('');
   const [messages, setMessages] = useState<DebateMessage[]>([]);
@@ -107,7 +108,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
     const participantsWithStances = await Promise.all(
       participants.map(async (p) => ({
         ...p,
-        stance: await generateDebateStance(p.systemPrompt, topic, i18n.language),
+        stance: await generateDebateStance(p.systemPrompt, topic, i18n.language, selectedProvider),
       }))
     );
     setParticipants(participantsWithStances);
@@ -149,7 +150,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
 
         setMessages(prev => [...prev, thinkingMessage]);
 
-        const { text, audio } = await runLiveDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn, isAudioEnabled);
+        const { text, audio } = await runLiveDebateTurn(topic, currentMessages, currentSpeaker, i18n.language, debateScope, argumentationStyle, isFinalTurn, isAudioEnabled, selectedProvider);
 
         if (stopDebateRef.current) break;
 
@@ -182,7 +183,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ participants: initialParticip
   
   const handleSummarize = async () => {
     setIsSummarizing(true);
-    const debateSummary = await summarizeDebate(topic, messages, i18n.language);
+    const debateSummary = await summarizeDebate(topic, messages, i18n.language, selectedProvider);
     setSummary(debateSummary);
     setIsSummarizing(false);
   }

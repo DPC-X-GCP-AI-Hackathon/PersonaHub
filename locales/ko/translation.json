@@ -83,5 +83,9 @@
   "nameAndDescriptionRequired": "이름과 설명을 입력해주세요.",
   "atLeastTwoExamples": "최소 2개의 예시 메시지를 입력해주세요.",
   "errorLearningPersona": "페르소나 스타일 학습에 실패했습니다. 다시 시도해주세요.",
-  "allFieldsRequired": "모든 필드를 입력해주세요."
+  "allFieldsRequired": "모든 필드를 입력해주세요.",
+  "llmSelector": {
+    "default": "기본",
+    "audioSupport": "오디오 생성 지원"
+  }
 }
