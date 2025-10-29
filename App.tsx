@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import { Persona, ChatRoom, ChatMessage } from './types';
@@ -9,6 +9,7 @@ import DebateArena from './components/DebateArena';
 import ChatRoomCard from './components/ChatRoomCard';
 import ChatRoomCreator from './components/ChatRoomCreator';
 import ChatRoomSimulator from './components/ChatRoomSimulator';
+import SkeletonCard from './components/SkeletonCard';
 import PlusIcon from './components/icons/PlusIcon';
 
 type TabType = 'debate' | 'messenger';
@@ -74,15 +75,15 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSelectPersona = (personaId: string) => {
+  const handleSelectPersona = useCallback((personaId: string) => {
     setSelectedPersonaIds(prev =>
       prev.includes(personaId)
         ? prev.filter(id => id !== personaId)
         : [...prev, personaId]
     );
-  };
+  }, []);
 
-  const handlePersonaCreate = async (newPersona: Omit<Persona, 'id'>) => {
+  const handlePersonaCreate = useCallback(async (newPersona: Omit<Persona, 'id'>) => {
     try {
       const res = await fetch('/api/personas', {
         method: 'POST',
@@ -101,9 +102,9 @@ const App: React.FC = () => {
       console.error('Error creating persona:', err);
       toast.error(t('errorCreatingPersona') || 'Failed to create persona');
     }
-  };
+  }, [t]);
 
-  const handlePersonaUpdate = async (updatedPersona: Persona) => {
+  const handlePersonaUpdate = useCallback(async (updatedPersona: Persona) => {
     try {
       const res = await fetch(`/api/personas/${updatedPersona.id}`, {
         method: 'PUT',
@@ -122,9 +123,9 @@ const App: React.FC = () => {
       console.error('Error updating persona:', err);
       toast.error(t('errorUpdatingPersona') || 'Failed to update persona');
     }
-  };
+  }, [t]);
 
-  const handlePersonaDelete = async (personaId: string) => {
+  const handlePersonaDelete = useCallback(async (personaId: string) => {
     if (window.confirm(t('deleteConfirmation'))) {
       try {
         const res = await fetch(`/api/personas/${personaId}`, {
@@ -141,20 +142,20 @@ const App: React.FC = () => {
         toast.error(t('errorDeletingPersona') || 'Failed to delete persona');
       }
     }
-  };
+  }, [t]);
 
-  const handleEditClick = (persona: Persona) => {
+  const handleEditClick = useCallback((persona: Persona) => {
     setEditingPersona(persona);
     setIsCreatingOrEditing(true);
-  };
+  }, []);
 
-  const handleCloseCreator = () => {
+  const handleCloseCreator = useCallback(() => {
     setEditingPersona(null);
     setIsCreatingOrEditing(false);
-  };
+  }, []);
 
   // ChatRoom handlers
-  const handleChatRoomCreate = async (newChatRoom: Omit<ChatRoom, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleChatRoomCreate = useCallback(async (newChatRoom: Omit<ChatRoom, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const res = await fetch('/api/chatrooms', {
         method: 'POST',
@@ -169,9 +170,9 @@ const App: React.FC = () => {
       console.error('Error creating chatroom:', err);
       toast.error(t('errorCreatingChatRoom') || 'Failed to create chat room');
     }
-  };
+  }, [t]);
 
-  const handleChatRoomUpdate = async (updated: ChatRoom) => {
+  const handleChatRoomUpdate = useCallback(async (updated: ChatRoom) => {
     try {
       const res = await fetch(`/api/chatrooms/${updated.id}`, {
         method: 'PUT',
@@ -186,9 +187,9 @@ const App: React.FC = () => {
       console.error('Error updating chatroom:', err);
       toast.error(t('errorUpdatingChatRoom') || 'Failed to update chat room');
     }
-  };
+  }, [t]);
 
-  const handleChatRoomDelete = async (id: string) => {
+  const handleChatRoomDelete = useCallback(async (id: string) => {
     if (window.confirm(t('deleteChatRoomConfirmation'))) {
       try {
         const res = await fetch(`/api/chatrooms/${id}`, {
@@ -203,9 +204,9 @@ const App: React.FC = () => {
         toast.error(t('errorDeletingChatRoom') || 'Failed to delete chat room');
       }
     }
-  };
+  }, [t]);
 
-  const handleUpdateMessages = async (chatRoomId: string, messages: ChatMessage[]) => {
+  const handleUpdateMessages = useCallback(async (chatRoomId: string, messages: ChatMessage[]) => {
     try {
       const res = await fetch(`/api/chatrooms/${chatRoomId}/messages`, {
         method: 'PUT',
@@ -218,11 +219,23 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('Error updating messages:', err);
     }
-  };
+  }, []);
 
-  const selectedPersonas = personas.filter(p => selectedPersonaIds.includes(p.id));
-  const selectedChatRoom = chatRooms.find(c => c.id === selectedChatRoomId);
-  const selectedChatRoomPersona = selectedChatRoom ? personas.find(p => p.id === selectedChatRoom.personaId) : null;
+  // Memoized computed values
+  const selectedPersonas = useMemo(
+    () => personas.filter(p => selectedPersonaIds.includes(p.id)),
+    [personas, selectedPersonaIds]
+  );
+
+  const selectedChatRoom = useMemo(
+    () => chatRooms.find(c => c.id === selectedChatRoomId),
+    [chatRooms, selectedChatRoomId]
+  );
+
+  const selectedChatRoomPersona = useMemo(
+    () => selectedChatRoom ? personas.find(p => p.id === selectedChatRoom.personaId) : null,
+    [selectedChatRoom, personas]
+  );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
@@ -288,9 +301,10 @@ const App: React.FC = () => {
               <p className="text-gray-400 mb-4">{t('selectPersonas')}</p>
 
               {isLoading && (
-                <div className="flex justify-center items-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-                  <span className="ml-4 text-gray-400">{t('loading')}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[...Array(6)].map((_, i) => (
+                    <SkeletonCard key={i} />
+                  ))}
                 </div>
               )}
 
@@ -347,14 +361,13 @@ const App: React.FC = () => {
                 <h2 className="text-2xl font-bold mb-1 text-purple-300">{t('chatRooms')}</h2>
                 <p className="text-gray-400 mb-4">{t('selectPersonas')}</p>
 
-                {isChatRoomsLoading && (
-                  <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-                    <span className="ml-4 text-gray-400">{t('loading')}</span>
+                {isChatRoomsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[...Array(3)].map((_, i) => (
+                      <SkeletonCard key={i} />
+                    ))}
                   </div>
-                )}
-
-                {!isChatRoomsLoading && (
+                ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {chatRooms.map(chatRoom => (
                       <ChatRoomCard

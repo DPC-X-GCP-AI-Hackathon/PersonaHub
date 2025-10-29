@@ -19,13 +19,13 @@ const PersonaCard: React.FC<PersonaCardProps> = ({ persona, isSelected, onSelect
       className={`group relative rounded-lg p-4 bg-gray-800 border-2 transition-all duration-200 cursor-pointer hover:border-purple-500 hover:shadow-lg hover:shadow-purple-900/50 ${isSelected ? 'border-purple-500 ring-2 ring-purple-500' : 'border-gray-700'}`}
     >
       <div className="absolute top-2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onEdit(persona); }}
           className="p-1.5 rounded-full bg-gray-700/50 hover:bg-purple-500/50 text-white"
         >
           <PencilIcon className="w-4 h-4" />
         </button>
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onDelete(persona.id); }}
           className="p-1.5 rounded-full bg-gray-700/50 hover:bg-red-500/50 text-white"
         >
@@ -50,4 +50,4 @@ const PersonaCard: React.FC<PersonaCardProps> = ({ persona, isSelected, onSelect
   );
 };
 
-export default PersonaCard;
+export default React.memo(PersonaCard);

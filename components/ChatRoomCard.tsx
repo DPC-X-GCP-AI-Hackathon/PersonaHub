@@ -97,4 +97,4 @@ const ChatRoomCard: React.FC<ChatRoomCardProps> = ({
   );
 };
 
-export default ChatRoomCard;
+export default React.memo(ChatRoomCard);
